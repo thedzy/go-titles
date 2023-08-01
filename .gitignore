@@ -12,6 +12,9 @@ title_creator
 # Test binary, built with `go test -c`
 *.test
 
+# Images created by debiug mode
+*.png
+
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
@@ -21,4 +24,4 @@ title_creator
 # Go workspace file
 go.work
 
-**/.DS_Store
+**/*.DS_Store
