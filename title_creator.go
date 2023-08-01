@@ -24,6 +24,14 @@ import (
 	"strings"
 )
 
+type Block struct {
+	Try     func()
+	Catch   func(Exception)
+	Finally func()
+}
+
+type Exception interface{}
+
 var (
 	text                    = flag.String("text", "Hello World!", "text to render")
 	displayCharactersOption = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render")
@@ -37,6 +45,7 @@ var (
 
 	useInverted = flag.Bool("allow-inverted", false, "use inverted characters")
 	debug       = flag.Bool("debug", false, "debug mode")
+	renderMode  = flag.Int("mode", 20, "render mode")
 )
 
 func main() {
@@ -71,13 +80,13 @@ func main() {
 		}
 	} else {
 		if *debug {
-			fmt.Printf(displayCharacters)
+			fmt.Println(displayCharacters)
 		}
 	}
 	*fontSize = *fontSize * float64(displayResolution)
 
 	// Draw title
-	renderImage, textImageRect := renderText(*text, *fontSize, 72.0, *fontName, image.White, image.Black)
+	renderImage, textImageRect := renderText(*text, *fontSize, 72.0, *fontName, image.White, image.Transparent)
 	croppedImage := cropImageToDimension(renderImage, textImageRect.X, textImageRect.Y)
 
 	// Check if the image width is greater than window width
@@ -102,6 +111,7 @@ func main() {
 	// Scale to pixel ratio
 	bounds := croppedImage.Bounds()
 	croppedImage = scaleImageToDimension(croppedImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect))
+	croppedImage = cropBlank(croppedImage)
 
 	// Build and fill a 4D matrix of the title
 	brightnessMatrix := getEmptyBrightnessMatrix(croppedImage, displayResolution)
@@ -151,7 +161,7 @@ func main() {
 	rows, cols := len(brightnessMatrix), len(brightnessMatrix[0])
 	for x := 0; x < rows; x++ {
 		for y := 0; y < cols; y++ {
-			character, invert := findMatch(characterMap, brightnessMatrix[x][y])
+			character, invert := findMatch(characterMap, brightnessMatrix[x][y], *renderMode)
 			if invert {
 				fmt.Print("\x1B[7m")
 			}
@@ -164,14 +174,23 @@ func main() {
 }
 
 // findMatch Find a character that matches a section of image
-func findMatch(characterMap map[string][][]int, testMatrix [][]int) (string, bool) {
+func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) (string, bool) {
 	match := " "
 	bestScore := 255.0
 	invertedMatch := " "
 	invertedBestScore := 0.0
 	inverted := false
 	for character, matrix := range characterMap {
-		score := calculateMSE(testMatrix, matrix)
+		var score float64
+		switch method {
+		case 1:
+			score = calculateMSE(testMatrix, matrix)
+		case 2:
+			score = calculateABS(testMatrix, matrix)
+		default:
+			score = calculateContrast(testMatrix, matrix, method)
+		}
+
 		if score < bestScore {
 			bestScore = score
 			match = character
@@ -198,54 +217,58 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int) (string, boo
 
 // RenderText to image
 func renderText(text string, fontSize float64, imageDPI float64, fontName string, foreground *image.Uniform, background *image.Uniform) (image.Image, fixed.Point26_6) {
+
 	// Initialize the context.
 	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	var textImageRect fixed.Point26_6
+	var errors int
 	fontBytes, err := ioutil.ReadFile(fontName)
 	if err != nil {
-		log.Println(err)
-		return nil, fixed.P(0, 0)
+		errors++
 	}
-	if strings.HasSuffix(fontName, ".ttf2") {
 
-		fontData, err := freetype.ParseFont(fontBytes)
-		if err != nil {
-			log.Println(err)
-			return nil, fixed.P(0, 0)
-		}
-		newContext := freetype.NewContext()
-		newContext.SetDPI(imageDPI)
-		newContext.SetFont(fontData)
-		newContext.SetFontSize(fontSize)
-		newContext.SetClip(render.Bounds())
-		newContext.SetDst(render)
-		newContext.SetSrc(foreground)
-		newContext.SetHinting(font.HintingFull)
+	fontData, err := freetype.ParseFont(fontBytes)
+	if err != nil {
+		errors++
+	}
+	newContext := freetype.NewContext()
+	newContext.SetDPI(imageDPI)
+	newContext.SetFont(fontData)
+	newContext.SetFontSize(fontSize)
+	newContext.SetClip(render.Bounds())
+	newContext.SetDst(render)
+	newContext.SetSrc(foreground)
+	newContext.SetHinting(font.HintingFull)
 
-		// Draw the text.
-		text = strings.Replace(fontName, "\t", "  ", -1) // convert tabs into spaces
-		pt := freetype.Pt(0, 0+int(newContext.PointToFixed(fontSize)>>6))
+	// Draw the text.
+	text = strings.Replace(text, "\t", "  ", -1) // convert tabs into spaces
+	pt := freetype.Pt(0, 0+int(newContext.PointToFixed(fontSize)>>6))
 
-		textImageRect, err = newContext.DrawString(text, pt)
-		if err != nil {
-			log.Println(err)
-			return nil, fixed.P(0, 0)
-		}
-		pt.Y += newContext.PointToFixed(fontSize)
-	} else {
+	textImageRect, err = newContext.DrawString(text, pt)
+	if err != nil {
+		errors++
+	}
+	pt.Y += newContext.PointToFixed(fontSize)
+
+	if errors > 0 {
+		// Fail over to opentype
+		render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
+		draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
+
 		fontData, err := opentype.Parse(fontBytes)
 		if err != nil {
-			log.Fatalf("Parse: %v", err)
+			log.Fatalf("Parse: %v, %s", err, fontName)
 		}
+
 		face, err := opentype.NewFace(fontData, &opentype.FaceOptions{
 			Size:    fontSize,
 			DPI:     imageDPI,
 			Hinting: font.HintingNone,
 		})
 		if err != nil {
-			log.Fatalf("NewFace: %v", err)
+			log.Fatalf("NewFace: %v, %s", err, fontName)
 		}
 
 		fontDrawer := font.Drawer{
@@ -256,12 +279,14 @@ func renderText(text string, fontSize float64, imageDPI float64, fontName string
 		}
 
 		fontDrawer.DrawString(text)
+
 		// Determine the rendering bounds of the text
 		bounds, _ := fontDrawer.BoundString(text)
-		textImageRect = fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
-	}
 
-	return render, textImageRect
+		return render, fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
+	} else {
+		return render, textImageRect
+	}
 }
 
 // cropImageToDimension Crops image to the dimensions
@@ -276,6 +301,37 @@ func cropImageToDimension(img image.Image, x, y fixed.Int26_6) image.Image {
 	draw.Draw(cropped, cropped.Bounds(), img, rect.Min, draw.Src)
 
 	return cropped
+}
+
+// Function to crop the image and remove blank space
+func cropBlank(img image.Image) image.Image {
+	bounds := img.Bounds()
+	minX, minY, maxX, maxY := bounds.Max.X, bounds.Max.Y, 0, 0
+
+	// Find the minimum and maximum non-empty pixel coordinates
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if _, _, _, a := img.At(x, y).RGBA(); a != 0 {
+				if x < minX {
+					minX = x
+				}
+				if x > maxX {
+					maxX = x
+				}
+				if y < minY {
+					minY = y
+				}
+				if y > maxY {
+					maxY = y
+				}
+			}
+		}
+	}
+
+	// Create a new cropped image
+	croppedImage := image.NewRGBA(image.Rect(0, 0, maxX-minX+10, maxY-minY+10))
+	draw.Draw(croppedImage, croppedImage.Bounds(), img, image.Point{minX, minY}, draw.Src)
+	return croppedImage
 }
 
 // scaleImageToDimension Scales image to the dimensions
@@ -427,27 +483,6 @@ func getImageMatrix(img image.Image) [][]int {
 	return characterMatrix
 }
 
-func calculateMSE(matrix1, matrix2 [][]int) float64 {
-	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
-		fmt.Printf("%d,%d != %d,%d\n", len(matrix1), len(matrix1[0]), len(matrix2), len(matrix2[0]))
-		fmt.Println(matrix2)
-		panic("Matrices must have the same dimensions.")
-	}
-
-	rows, cols := len(matrix1), len(matrix1[0])
-	sum := 0.0
-
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			diff := matrix1[i][j] - matrix2[i][j]
-			sum += float64(diff * diff)
-		}
-	}
-
-	mse := sum / float64(rows*cols)
-	return math.Sqrt(mse) // The score ranges from 0 (match) to 255 (exact opposite)
-}
-
 // saveCharacterMapToDisk Saves the map to disk to save render time and distribute styles
 func saveCharacterMapToDisk(data map[string][][]int, filename string) error {
 	// Create or open the file for writing
@@ -537,4 +572,70 @@ func drawMatrix(value [][]int) {
 		fmt.Println()
 	}
 	fmt.Println()
+}
+
+// calculateMSE Simple Mean Squared Error
+func calculateMSE(matrix1, matrix2 [][]int) float64 {
+	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
+		fmt.Printf("%d,%d != %d,%d\n", len(matrix1), len(matrix1[0]), len(matrix2), len(matrix2[0]))
+		fmt.Println(matrix2)
+		panic("Matrices must have the same dimensions.")
+	}
+
+	rows, cols := len(matrix1), len(matrix1[0])
+	sum := 0.0
+
+	for i := 0; i < rows; i++ {
+		for j := 0; j < cols; j++ {
+			diff := matrix1[i][j] - matrix2[i][j]
+			sum += float64(diff * diff)
+		}
+	}
+
+	mse := sum / float64(rows*cols)
+	return math.Sqrt(mse) // The score ranges from 0 (match) to 255 (exact opposite)
+}
+
+// calculateSSIM
+func calculateABS(matrix1, matrix2 [][]int) float64 {
+	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
+		panic("Matrices must have the same dimensions")
+	}
+
+	sum := 0.0
+	n := float64(len(matrix1) * len(matrix1[0]))
+
+	for i := 0; i < len(matrix1); i++ {
+		for j := 0; j < len(matrix1[0]); j++ {
+			diff := float64(matrix1[i][j] - matrix2[i][j])
+			sum += math.Abs(diff)
+		}
+	}
+
+	return sum / n
+}
+
+// calculateSSIM
+func calculateContrast(matrix1, matrix2 [][]int, thresholdValue int) float64 {
+	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
+		panic("Matrices must have the same dimensions")
+	}
+
+	sum := 0.0
+	n := float64(len(matrix1) * len(matrix1[0]))
+
+	for i := 0; i < len(matrix1); i++ {
+		for j := 0; j < len(matrix1[0]); j++ {
+			score := math.Abs(contrastThreshold(matrix1[i][j], thresholdValue) - contrastThreshold(matrix2[i][j], thresholdValue))
+			sum += score
+		}
+	}
+	return sum / n * 255
+}
+
+func contrastThreshold(value int, thresholdValue int) float64 {
+	if value > thresholdValue {
+		return 1.0
+	}
+	return 0.0
 }
