@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
@@ -24,26 +25,19 @@ import (
 	"strings"
 )
 
-type Block struct {
-	Try     func()
-	Catch   func(Exception)
-	Finally func()
-}
-
-type Exception interface{}
-
 var (
-	text                    = flag.String("text", "Hello World!", "text to render")
-	displayCharactersOption = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render")
-	displayResolutionOption = flag.Int("resolution", 20, "text to render")
-	displayFontOption       = flag.String("render-font", "/System/Library/Fonts/Monaco.ttf", "filename of the ttf font")
-	pixelAspect             = flag.Float64("aspect", 0.66, "character height to width")
-	fontName                = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
-	fontSize                = flag.Float64("size", 300.0, "font size in points")
-	loadFile                = flag.String("load", "", "load saved character map")
-	saveFile                = flag.String("save", "", "save character map")
+	text              = flag.String("text", "Hello World!", "text to render")
+	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
+	displayResolution = flag.Int("resolution", 20, "text to render, ignored when loading a map")
+	displayFont       = flag.String("render-font", "/System/Library/Fonts/Monaco.ttf", "filename of the ttf font that is used in your terminal, ignored when loading a map")
+	pixelAspect       = flag.Float64("aspect", 0.66, "character height to width")
+	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
+	fontSize          = flag.Float64("size", 300.0, "font size in points")
+	loadFile          = flag.String("load", "", "load saved character map")
+	saveFile          = flag.String("save", "", "save character map")
+	outputFile        = flag.String("output", "", "save output to file")
 
-	useInverted = flag.Bool("allow-inverted", false, "use inverted characters")
+	useInverted = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
 	debug       = flag.Bool("debug", false, "debug mode")
 	renderMode  = flag.Int("mode", 20, "render mode")
 )
@@ -51,13 +45,16 @@ var (
 func main() {
 	flag.Parse()
 
-	displayResolution := *displayResolutionOption
-	displayCharacters := *displayCharactersOption
-	displayFont := *displayFontOption
+	// Set output
+	screenOutput := true
+	if *outputFile != "" {
+		screenOutput = false
+		*useInverted = false
+	}
 
 	// Load character map
 	var characterMap map[string][][]int
-	if *loadFile != "" {
+	if isValidFilePath(*loadFile) {
 		if *debug {
 			fmt.Println("Loading File")
 		}
@@ -75,15 +72,16 @@ func main() {
 		}
 		// Get resolution from loaded map
 		for _, value := range characterMap {
-			displayResolution = len(value)
+			*displayResolution = len(value)
 			break
 		}
 	} else {
 		if *debug {
-			fmt.Println(displayCharacters)
+			fmt.Println(*displayCharacters)
 		}
+		fmt.Printf("%s, is not a valid path\n", *loadFile)
 	}
-	*fontSize = *fontSize * float64(displayResolution)
+	*fontSize = *fontSize * float64(*displayResolution)
 
 	// Draw title
 	renderImage, textImageRect := renderText(*text, *fontSize, 72.0, *fontName, image.White, image.Transparent)
@@ -95,8 +93,8 @@ func main() {
 		fmt.Println(err)
 		winSize.Col = 1200
 	}
-	displayWidth := int(winSize.Col) * displayResolution
-	if int(textImageRect.X>>6) > displayWidth {
+	displayWidth := int(winSize.Col) * *displayResolution
+	if int(textImageRect.X>>6) > displayWidth && screenOutput {
 		if *debug {
 			fmt.Println("Scaling")
 		}
@@ -114,12 +112,12 @@ func main() {
 	croppedImage = cropBlank(croppedImage)
 
 	// Build and fill a 4D matrix of the title
-	brightnessMatrix := getEmptyBrightnessMatrix(croppedImage, displayResolution)
-	brightnessMatrix = fillBrightnessMatrix(brightnessMatrix, croppedImage, displayResolution)
+	brightnessMatrix := getEmptyBrightnessMatrix(croppedImage, *displayResolution)
+	brightnessMatrix = fillBrightnessMatrix(brightnessMatrix, croppedImage, *displayResolution)
 
 	// Build character map if not loading from file
-	if *loadFile == "" {
-		characterMap = mapCharacters(displayCharacters, displayFont, displayResolution)
+	if !isValidFilePath(*loadFile) {
+		characterMap = mapCharacters(*displayCharacters, *displayFont, *displayResolution)
 	}
 
 	// Save character map
@@ -157,7 +155,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Render to screen
+	// Render to screen/file
 	rows, cols := len(brightnessMatrix), len(brightnessMatrix[0])
 	for x := 0; x < rows; x++ {
 		for y := 0; y < cols; y++ {
@@ -165,12 +163,36 @@ func main() {
 			if invert {
 				fmt.Print("\x1B[7m")
 			}
-			fmt.Print(character)
+			if screenOutput {
+				fmt.Print(character)
+			} else {
+				outputToFile(*outputFile, character)
+			}
 
 			fmt.Print("\x1B[0m")
 		}
-		fmt.Println()
+		if screenOutput {
+			fmt.Println()
+		} else {
+			outputToFile(*outputFile, "\n")
+		}
 	}
+}
+
+func outputToFile(filename string, character string) error {
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	_, err = writer.WriteString(character)
+	if err != nil {
+		return err
+	}
+
+	return writer.Flush()
 }
 
 // findMatch Find a character that matches a section of image
@@ -303,7 +325,7 @@ func cropImageToDimension(img image.Image, x, y fixed.Int26_6) image.Image {
 	return cropped
 }
 
-// Function to crop the image and remove blank space
+// CropBlank Function to crop the image and remove blank space
 func cropBlank(img image.Image) image.Image {
 	bounds := img.Bounds()
 	minX, minY, maxX, maxY := bounds.Max.X, bounds.Max.Y, 0, 0
@@ -638,4 +660,14 @@ func contrastThreshold(value int, thresholdValue int) float64 {
 		return 1.0
 	}
 	return 0.0
+}
+
+func isValidFilePath(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		// If os.Stat returns an error, the file or directory doesn't exist
+		return false
+	}
+
+	return !info.IsDir()
 }
