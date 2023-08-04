@@ -7,12 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/golang/freetype"
-	// "golang.org/x/image/font/gofont/goitalic"
-	"golang.org/x/image/font/opentype"
-	// "github.com/golang/freetype/truetype"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
-	// "golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 	"golang.org/x/sys/unix"
 	"image"
@@ -54,7 +51,7 @@ func main() {
 
 	// Load character map
 	var characterMap map[string][][]int
-	if isValidFilePath(*loadFile) {
+	if *loadFile != "" && isValidFilePath(*loadFile) {
 		if *debug {
 			fmt.Println("Loading File")
 		}
@@ -75,10 +72,11 @@ func main() {
 			*displayResolution = len(value)
 			break
 		}
-	} else {
+	} else if isValidFilePath(*loadFile) {
 		if *debug {
 			fmt.Println(*displayCharacters)
 		}
+	} else {
 		fmt.Printf("%s, is not a valid path\n", *loadFile)
 	}
 	*fontSize = *fontSize * float64(*displayResolution)
@@ -245,10 +243,11 @@ func renderText(text string, fontSize float64, imageDPI float64, fontName string
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	var textImageRect fixed.Point26_6
-	var errors int
+	errors := 0
 	fontBytes, err := ioutil.ReadFile(fontName)
 	if err != nil {
 		errors++
+		log.Fatalf("ReadFile: %v, %s", err, fontName)
 	}
 
 	fontData, err := freetype.ParseFont(fontBytes)
