@@ -94,17 +94,21 @@ func main() {
 	renderImage, textImageRect := renderText(*text, *fontSize, 72.0, *fontName, image.White, image.Transparent)
 	croppedImage := cropImageToDimension(renderImage, textImageRect.X, textImageRect.Y)
 
-	// Check if the image width is greater than window width
+	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
-		winSize, err := getWinSize()
-		if err != nil {
-			fmt.Println(err)
-			*maxWidth = 1200
+		if screenOutput {
+			winSize, err := getWinSize()
+			if err != nil {
+				fmt.Println(err)
+				*maxWidth = math.MaxInt32
+			}
+			*maxWidth = int(winSize.Col)
+		} else {
+			*maxWidth = math.MaxInt32
 		}
-		*maxWidth = int(winSize.Col)
 	}
 	displayWidth := int(*maxWidth) * *displayResolution
-	if int(textImageRect.X>>6) > displayWidth && screenOutput {
+	if int(textImageRect.X>>6) > displayWidth {
 		if *debug {
 			fmt.Println("Scaling")
 		}
