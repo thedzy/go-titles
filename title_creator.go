@@ -19,10 +19,12 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 var (
+	// Render options
 	text              = flag.String("text", "Hello World!", "text to render")
 	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
 	displayResolution = flag.Int("resolution", 20, "text to render, ignored when loading a map")
@@ -30,13 +32,16 @@ var (
 	pixelAspect       = flag.Float64("aspect", 0.66, "character height to width")
 	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
 	fontSize          = flag.Float64("size", 300.0, "font size in points")
-	loadFile          = flag.String("load", "", "load saved character map")
-	saveFile          = flag.String("save", "", "save character map")
-	outputFile        = flag.String("output", "", "save output to file")
+	maxWidth          = flag.Int("max-width", 0, "maximium width to render")
+	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
+	renderMode        = flag.Int("mode", 20, "render mode")
 
-	useInverted = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
-	debug       = flag.Bool("debug", false, "debug mode")
-	renderMode  = flag.Int("mode", 20, "render mode")
+	// File options
+	loadFile   = flag.String("load", "", "load saved character map")
+	saveFile   = flag.String("save", "", "save character map")
+	outputFile = flag.String("output", "", "save output to file")
+
+	debug = flag.Bool("debug", false, "debug mode")
 )
 
 func main() {
@@ -44,9 +49,12 @@ func main() {
 
 	// Set output
 	screenOutput := true
-	if *outputFile != "" {
+	if *outputFile != "" && isValidSavePath(*outputFile) {
 		screenOutput = false
 		*useInverted = false
+	} else if !isValidSavePath(*outputFile) {
+		fmt.Printf("%s, is not a valid path\n", *outputFile)
+		os.Exit(1)
 	}
 
 	// Load character map
@@ -78,6 +86,7 @@ func main() {
 		}
 	} else {
 		fmt.Printf("%s, is not a valid path\n", *loadFile)
+		os.Exit(1)
 	}
 	*fontSize = *fontSize * float64(*displayResolution)
 
@@ -86,12 +95,15 @@ func main() {
 	croppedImage := cropImageToDimension(renderImage, textImageRect.X, textImageRect.Y)
 
 	// Check if the image width is greater than window width
-	winSize, err := getWinSize()
-	if err != nil {
-		fmt.Println(err)
-		winSize.Col = 1200
+	if *maxWidth == 0 {
+		winSize, err := getWinSize()
+		if err != nil {
+			fmt.Println(err)
+			*maxWidth = 1200
+		}
+		*maxWidth = int(winSize.Col)
 	}
-	displayWidth := int(winSize.Col) * *displayResolution
+	displayWidth := int(*maxWidth) * *displayResolution
 	if int(textImageRect.X>>6) > displayWidth && screenOutput {
 		if *debug {
 			fmt.Println("Scaling")
@@ -119,9 +131,9 @@ func main() {
 	}
 
 	// Save character map
-	if *saveFile != "" {
+	if *saveFile != "" && isValidSavePath(*saveFile) {
 		if strings.HasSuffix(*saveFile, ".json") {
-			fmt.Printf("Save json to disk")
+			fmt.Println("Save json to disk")
 
 			// Open a file for writing
 			file, err := os.Create(*saveFile)
@@ -142,6 +154,9 @@ func main() {
 			fmt.Println("Save map to disk")
 			saveCharacterMapToDisk(characterMap, *saveFile)
 		}
+	} else if !isValidSavePath(*saveFile) {
+		fmt.Printf("%s, is not a valid path\n", *saveFile)
+		os.Exit(1)
 	}
 
 	// Debug characters
@@ -669,4 +684,16 @@ func isValidFilePath(path string) bool {
 	}
 
 	return !info.IsDir()
+}
+
+func isValidSavePath(path string) bool {
+	parentDir := filepath.Dir(path)
+	info, err := os.Stat(parentDir)
+	if err != nil {
+		// Error occurred while checking the parent directory
+		return false
+	}
+
+	// Check if the parent directory exists and is a directory
+	return info.IsDir()
 }
