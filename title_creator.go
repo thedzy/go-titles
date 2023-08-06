@@ -27,7 +27,7 @@ var (
 	// Render options
 	text              = flag.String("text", "Hello World!", "text to render")
 	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
-	displayResolution = flag.Int("resolution", 20, "text to render, ignored when loading a map")
+	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
 	displayFont       = flag.String("render-font", "/System/Library/Fonts/Monaco.ttf", "filename of the ttf font that is used in your terminal, ignored when loading a map")
 	pixelAspect       = flag.Float64("aspect", 0.66, "character height to width")
 	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
@@ -46,6 +46,7 @@ var (
 
 func main() {
 	flag.Parse()
+	displayCharacters = removeDuplicates(*displayCharacters)
 
 	// Set output
 	screenOutput := true
@@ -80,18 +81,18 @@ func main() {
 			*displayResolution = len(value)
 			break
 		}
-	} else if isValidFilePath(*loadFile) {
+	} else if *loadFile == "" {
 		if *debug {
 			fmt.Println(*displayCharacters)
 		}
-	} else {
+	} else if *loadFile != "" && !isValidFilePath(*loadFile) {
 		fmt.Printf("%s, is not a valid path\n", *loadFile)
 		os.Exit(1)
 	}
 	*fontSize = *fontSize * float64(*displayResolution)
 
 	// Draw title
-	renderImage, textImageRect := renderText(*text, *fontSize, 72.0, *fontName, image.White, image.Transparent)
+	renderImage, textImageRect := renderText(*text, *fontName, *fontSize, 72.0, image.White, image.Transparent)
 	croppedImage := cropImageToDimension(renderImage, textImageRect.X, textImageRect.Y)
 
 	// Check if the image width is greater than window width and if we are rending to screen
@@ -160,7 +161,7 @@ func main() {
 		}
 	} else if !isValidSavePath(*saveFile) {
 		fmt.Printf("%s, is not a valid path\n", *saveFile)
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	// Debug characters
@@ -169,7 +170,7 @@ func main() {
 			fmt.Printf("Key: %s\n", key)
 			drawMatrix(value)
 		}
-		os.Exit(1)
+		os.Exit(255)
 	}
 
 	// Render to screen/file
@@ -185,7 +186,6 @@ func main() {
 			} else {
 				outputToFile(*outputFile, character)
 			}
-
 			fmt.Print("\x1B[0m")
 		}
 		if screenOutput {
@@ -194,22 +194,6 @@ func main() {
 			outputToFile(*outputFile, "\n")
 		}
 	}
-}
-
-func outputToFile(filename string, character string) error {
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := bufio.NewWriter(file)
-	_, err = writer.WriteString(character)
-	if err != nil {
-		return err
-	}
-
-	return writer.Flush()
 }
 
 // findMatch Find a character that matches a section of image
@@ -255,10 +239,10 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 }
 
 // RenderText to image
-func renderText(text string, fontSize float64, imageDPI float64, fontName string, foreground *image.Uniform, background *image.Uniform) (image.Image, fixed.Point26_6) {
+func renderText(text, fontName string, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
-	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
+	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*2.2)))
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	var textImageRect fixed.Point26_6
@@ -294,7 +278,7 @@ func renderText(text string, fontSize float64, imageDPI float64, fontName string
 
 	if errors > 0 {
 		// Fail over to opentype
-		render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
+		// render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
 		draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 		fontData, err := opentype.Parse(fontBytes)
@@ -369,7 +353,7 @@ func cropBlank(img image.Image) image.Image {
 	}
 
 	// Create a new cropped image
-	croppedImage := image.NewRGBA(image.Rect(0, 0, maxX-minX+10, maxY-minY+10))
+	croppedImage := image.NewRGBA(image.Rect(0, 0, maxX-minX, maxY-minY+10))
 	draw.Draw(croppedImage, croppedImage.Bounds(), img, image.Point{minX, minY}, draw.Src)
 	return croppedImage
 }
@@ -382,7 +366,7 @@ func scaleImageToDimension(img image.Image, x, y int) image.Image {
 }
 
 // scaleImageToProportions scales the image to the size while maintaining proportions
-func scaleImageToProportions(img image.Image, size int, method int) image.Image {
+func scaleImageToProportions(img image.Image, size, method int) image.Image {
 	bounds := img.Bounds()
 	x, y := bounds.Max.X, bounds.Max.Y
 
@@ -446,7 +430,6 @@ func getEmptyBrightnessMatrix(img image.Image, resolution int) [][][][]int {
 
 // fillBrightnessMatrix reads an image file and fills a matrix of brightness values.
 func fillBrightnessMatrix(matrix [][][][]int, img image.Image, resolution int) [][][][]int {
-
 	// Get the image dimensions
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -479,11 +462,11 @@ func fillBrightnessMatrix(matrix [][][][]int, img image.Image, resolution int) [
 }
 
 // mapCharacters Create a brightness map of the chracters
-func mapCharacters(characters string, fontName string, resolution int) map[string][][]int {
+func mapCharacters(characters, fontName string, resolution int) map[string][][]int {
 	characterMap := make(map[string][][]int)
 
 	for _, character := range characters {
-		renderCharacter, dimensions := renderText(string(character), 20, 72, fontName, image.Black, image.Transparent)
+		renderCharacter, dimensions := renderText(string(character), fontName, 20, 72, image.Black, image.Transparent)
 		croppedCharacter := scaleImageToDimension(renderCharacter, int(dimensions.Y>>6), int(dimensions.Y>>6))
 		croppedCharacter = scaleImageToProportions(renderCharacter, resolution, 2)
 		if *debug {
@@ -521,50 +504,6 @@ func getImageMatrix(img image.Image) [][]int {
 	}
 
 	return characterMatrix
-}
-
-// saveCharacterMapToDisk Saves the map to disk to save render time and distribute styles
-func saveCharacterMapToDisk(data map[string][][]int, filename string) error {
-	// Create or open the file for writing
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Create a new encoder for writing
-	encoder := gob.NewEncoder(file)
-
-	// Encode and save the map to the file
-	err = encoder.Encode(data)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Character map saved to file:", filename)
-	return nil
-}
-
-// loadCharacterMapFromDisk Loads the map from disk of a saved render
-func loadCharacterMapFromDisk(filename string) (map[string][][]int, error) {
-	// Open the file for reading
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	// Create a new decoder for reading
-	decoder := gob.NewDecoder(file)
-
-	// Decode and load the map from the file
-	var data map[string][][]int
-	err = decoder.Decode(&data)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
 }
 
 // getWinSize Get the full size of the window (*nix/mac)
@@ -673,7 +612,7 @@ func calculateContrast(matrix1, matrix2 [][]int, thresholdValue int) float64 {
 	return sum / n * 255
 }
 
-func contrastThreshold(value int, thresholdValue int) float64 {
+func contrastThreshold(value, thresholdValue int) float64 {
 	if value > thresholdValue {
 		return 1.0
 	}
@@ -700,4 +639,78 @@ func isValidSavePath(path string) bool {
 
 	// Check if the parent directory exists and is a directory
 	return info.IsDir()
+}
+
+func outputToFile(filename, character string) error {
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	_, err = writer.WriteString(character)
+	if err != nil {
+		return err
+	}
+
+	return writer.Flush()
+}
+
+// saveCharacterMapToDisk Saves the map to disk to save render time and distribute styles
+func saveCharacterMapToDisk(data map[string][][]int, filename string) error {
+	// Create or open the file for writing
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Create a new encoder for writing
+	encoder := gob.NewEncoder(file)
+
+	// Encode and save the map to the file
+	err = encoder.Encode(data)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Character map saved to file:", filename)
+	return nil
+}
+
+// loadCharacterMapFromDisk Loads the map from disk of a saved render
+func loadCharacterMapFromDisk(filename string) (map[string][][]int, error) {
+	// Open the file for reading
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// Create a new decoder for reading
+	decoder := gob.NewDecoder(file)
+
+	// Decode and load the map from the file
+	var data map[string][][]int
+	err = decoder.Decode(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func removeDuplicates(text string) *string {
+	charMap := make(map[rune]bool)
+	var result string
+
+	for _, ch := range text {
+		if !charMap[ch] {
+			result += string(ch)
+			charMap[ch] = true
+		}
+	}
+
+	return &result
 }
