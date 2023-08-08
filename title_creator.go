@@ -33,7 +33,7 @@ var (
 	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
 	pixelAspect       = flag.Float64("aspect", 0.5, "character height to width")
 	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
-	fontSize          = flag.Float64("size", 300.0, "font size in points")
+	fontSize          = flag.Float64("size", 25.0, "font size in points")
 	maxWidth          = flag.Int("max-width", 0, "maximium width to render")
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
 	renderMode        = flag.Int("mode", 20, "render mode")
@@ -48,7 +48,7 @@ var (
 
 func main() {
 	flag.Parse()
-	displayCharacters = removeDuplicates(*displayCharacters)
+	displayCharacters = removeSpecialCharactersAndDuplicates(*displayCharacters)
 
 	// Set output
 	screenOutput := true
@@ -689,17 +689,20 @@ func loadCharacterMapFromDisk(filename string) (map[string][][]int, error) {
 	return data, nil
 }
 
-// removeDuplicates Removes duplicates for a string
-func removeDuplicates(text string) *string {
-	charMap := make(map[rune]bool)
-	var result string
+// removeSpecialCharactersAndDuplicates Removes characters the repeat or below 32 in the ascii table
+func removeSpecialCharactersAndDuplicates(input string) *string {
+	// Create a set to keep track of seen characters
+	seen := make(map[rune]bool)
 
-	for _, ch := range text {
-		if !charMap[ch] {
-			result += string(ch)
-			charMap[ch] = true
+	// Iterate through the string and filter out special characters and duplicates
+	var result strings.Builder
+	for _, ch := range input {
+		if ch >= 32 && !seen[ch] {
+			result.WriteRune(ch)
+			seen[ch] = true
 		}
 	}
+	filtered := result.String()
 
-	return &result
+	return &filtered
 }
