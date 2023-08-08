@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/golang/freetype"
-	"github.com/golang/freetype/truetype"
+	"golang.org/x/image/font/gofont/gomono"
+
+	// "github.com/golang/freetype"
+	// "github.com/golang/freetype/truetype"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -93,8 +95,10 @@ func main() {
 	*fontSize = *fontSize * float64(*displayResolution)
 
 	// Draw title
-	renderImage, textImageRect := renderText(*text, *fontName, *fontSize, 72.0, image.White, image.Transparent)
-	croppedImage := cropImageToDimension(renderImage, textImageRect.X, textImageRect.Y)
+	fontBytes := getFontBytes(*fontName)
+	_ = fontBytes
+	renderImage, textImageRect := renderText(*text, fontBytes, *fontSize, 72.0, image.White, image.Transparent)
+	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6), int(textImageRect.Y>>6))
 
 	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
@@ -119,7 +123,7 @@ func main() {
 		croppedImage = scaleImageToDimension(croppedImage, int(displayWidth), int(float64(textImageRect.Y>>6)*scale))
 	}
 	if *debug {
-		saveImage(croppedImage, "test.png")
+		saveImage(croppedImage, "title.png")
 	}
 
 	// Scale to pixel ratio
@@ -242,107 +246,80 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 	return match, inverted
 }
 
-func getFontData(fontName string) *truetype.Font {
+// getFontBytes Get font btyes from file
+func getFontBytes(fontName string) []byte {
 	fontBytes, err := ioutil.ReadFile(fontName)
 	if err != nil {
 		log.Fatalf("ReadFile: %v, %s", err, fontName)
 	}
 
-	fontData, err := freetype.ParseFont(fontBytes)
-	if err != nil {
-		log.Fatalf("ParseFont: %v, %s", err, fontName)
-
-	}
-
-	return fontData
+	return fontBytes
 }
 
 // RenderText to image
-func renderText(text, fontName string, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
+func renderText(text string, fontBytes []byte, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
-	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
+	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*2.0)))
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
-	var textImageRect fixed.Point26_6
-	errors := 0
-	fontBytes, err := ioutil.ReadFile(fontName)
+	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
+
+	fontData, err := opentype.Parse(fontBytes)
 	if err != nil {
-		errors++
-		log.Fatalf("ReadFile: %v, %s", err, fontName)
+		log.Fatalf("Parse: %v, %s", err, fontName)
 	}
 
-	fontData, err := freetype.ParseFont(fontBytes)
+	face, err := opentype.NewFace(fontData, &opentype.FaceOptions{
+		Size:    fontSize,
+		DPI:     imageDPI,
+		Hinting: font.HintingNone,
+	})
 	if err != nil {
-		errors++
+		log.Fatalf("NewFace: %v, %s", err, fontName)
 	}
-	newContext := freetype.NewContext()
-	newContext.SetDPI(imageDPI)
-	newContext.SetFont(fontData)
-	newContext.SetFontSize(fontSize)
-	newContext.SetClip(render.Bounds())
-	newContext.SetDst(render)
-	newContext.SetSrc(foreground)
-	newContext.SetHinting(font.HintingFull)
 
-	// Draw the text.
-	text = strings.Replace(text, "\t", "  ", -1) // convert tabs into spaces
-	pt := freetype.Pt(0, 0+int(newContext.PointToFixed(fontSize)>>6))
-
-	textImageRect, err = newContext.DrawString(text, pt)
-	if err != nil {
-		errors++
+	fontDrawer := font.Drawer{
+		Dst:  render,
+		Src:  foreground,
+		Face: face,
+		Dot:  fixed.P(0, int(fontSize)),
 	}
-	pt.Y += newContext.PointToFixed(fontSize)
 
-	if errors > 0 {
-		// Fail over to opentype
-		// render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
-		draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
+	fontDrawer.DrawString(text)
 
-		fontData, err := opentype.Parse(fontBytes)
-		if err != nil {
-			log.Fatalf("Parse: %v, %s", err, fontName)
-		}
+	// Determine the rendering bounds of the text
+	bounds, _ := fontDrawer.BoundString(text)
 
-		face, err := opentype.NewFace(fontData, &opentype.FaceOptions{
-			Size:    fontSize,
-			DPI:     imageDPI,
-			Hinting: font.HintingNone,
-		})
-		if err != nil {
-			log.Fatalf("NewFace: %v, %s", err, fontName)
-		}
+	return render, fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
 
-		fontDrawer := font.Drawer{
-			Dst:  render,
-			Src:  foreground,
-			Face: face,
-			Dot:  fixed.P(0, int(fontSize)),
-		}
-
-		fontDrawer.DrawString(text)
-
-		// Determine the rendering bounds of the text
-		bounds, _ := fontDrawer.BoundString(text)
-		println(">>", fontDrawer.Src.Bounds().Dx())
-
-		return render, fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
-	} else {
-		return render, textImageRect
-	}
 }
 
-// cropImageToDimension Crops image to the dimensions
-func cropImageToDimension(img image.Image, x, y fixed.Int26_6) image.Image {
+// cropImageToDimension2 Crops image to the dimensions
+func cropImageToDimension2(img image.Image, x1, y1 int, x2, y2 fixed.Int26_6) image.Image {
 	// Create a rectangle using the fixed-point dimensions
-	rect := image.Rect(0, 0, x.Floor(), int(float32(y.Floor())*1.5))
+	rect := image.Rect(0, 0, x2.Floor(), int(float32(y2.Floor())))
 
 	// Create a new RGBA image with the specified dimensions
 	cropped := image.NewRGBA(rect)
 
 	// Copy the cropped region from the original image to the new image
 	draw.Draw(cropped, cropped.Bounds(), img, rect.Min, draw.Src)
+
+	return cropped
+}
+
+// cropImageToDimension Crops image to the dimensions (x1, y1) to (x2, y2)
+func cropImageToDimension(img image.Image, x1, y1, x2, y2 int) image.Image {
+	// Calculate the width and height of the cropped region
+	width := x2 - x1
+	height := y2 - y1
+
+	// Create a new RGBA image with the specified dimensions
+	cropped := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// Copy the cropped region from the original image to the new image
+	draw.Draw(cropped, cropped.Bounds(), img, image.Point{x1, y1}, draw.Src)
 
 	return cropped
 }
@@ -486,9 +463,13 @@ func mapCharacters(characters, fontName string, resolution int) map[string][][]i
 	characterMap := make(map[string][][]int)
 
 	for _, character := range characters {
-		renderCharacter, dimensions := renderText(string(character), fontName, 20, 72, image.Black, image.Transparent)
-		croppedCharacter := scaleImageToDimension(renderCharacter, int(dimensions.Y>>6), int(dimensions.Y>>6))
-		croppedCharacter = scaleImageToProportions(renderCharacter, resolution, 2)
+		// fontData := getFontData(fontName)
+		// _ = fontData
+		renderCharacter, dimensions := renderText(string(character), gomono.TTF, 20, 72, image.Black, image.Transparent)
+		// croppedCharacter := scaleImageToDimension(renderCharacter, int(dimensions.Y>>6), int(dimensions.Y>>6))
+		croppedCharacter := cropImageToDimension(renderCharacter, 0, 5, 14, 26)
+		fmt.Println(int(dimensions.Y>>6), int(dimensions.Y>>6))
+		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 2)
 		if *debug {
 			saveImage(croppedCharacter, fmt.Sprintf("%d.png", character))
 		}
