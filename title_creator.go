@@ -31,7 +31,6 @@ var (
 	text              = flag.String("text", "Hello World!", "text to render")
 	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
 	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
-	displayFont       = flag.String("render-font", "/System/Library/Fonts/Monaco.ttf", "filename of the ttf font that is used in your terminal, ignored when loading a map")
 	pixelAspect       = flag.Float64("aspect", 0.66, "character height to width")
 	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
 	fontSize          = flag.Float64("size", 300.0, "font size in points")
@@ -137,7 +136,7 @@ func main() {
 
 	// Build character map if not loading from file
 	if !isValidFilePath(*loadFile) {
-		characterMap = mapCharacters(*displayCharacters, *displayFont, *displayResolution)
+		characterMap = mapCharacters(*displayCharacters, *displayResolution)
 	}
 
 	// Save character map
@@ -459,16 +458,15 @@ func fillBrightnessMatrix(matrix [][][][]int, img image.Image, resolution int) [
 }
 
 // mapCharacters Create a brightness map of the chracters
-func mapCharacters(characters, fontName string, resolution int) map[string][][]int {
+func mapCharacters(characters string, resolution int) map[string][][]int {
 	characterMap := make(map[string][][]int)
 
 	for _, character := range characters {
 		// fontData := getFontData(fontName)
 		// _ = fontData
-		renderCharacter, dimensions := renderText(string(character), gomono.TTF, 20, 72, image.Black, image.Transparent)
+		renderCharacter, _ := renderText(string(character), gomono.TTF, 20, 72, image.Black, image.Transparent)
 		// croppedCharacter := scaleImageToDimension(renderCharacter, int(dimensions.Y>>6), int(dimensions.Y>>6))
 		croppedCharacter := cropImageToDimension(renderCharacter, 0, 5, 14, 26)
-		fmt.Println(int(dimensions.Y>>6), int(dimensions.Y>>6))
 		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 2)
 		if *debug {
 			saveImage(croppedCharacter, fmt.Sprintf("%d.png", character))
