@@ -119,7 +119,7 @@ func main() {
 		}
 		// Calculate the scale factor to resize the image to width 120
 		scale := float64(displayWidth) / float64(textImageRect.X>>6)
-		croppedImage = scaleImageToDimension(croppedImage, int(displayWidth), int(float64(textImageRect.Y>>6)*scale))
+		croppedImage = scaleImageToDimension(croppedImage, int(displayWidth), int(float64(textImageRect.Y>>6)*scale), 0)
 	}
 	if *debug {
 		saveImage(croppedImage, "title.png")
@@ -127,7 +127,7 @@ func main() {
 
 	// Scale to pixel ratio
 	bounds := croppedImage.Bounds()
-	croppedImage = scaleImageToDimension(croppedImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect))
+	croppedImage = scaleImageToDimension(croppedImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect), 0)
 	croppedImage = cropBlank(croppedImage)
 
 	// Build and fill a 4D matrix of the title
@@ -341,9 +341,19 @@ func cropBlank(img image.Image) image.Image {
 }
 
 // scaleImageToDimension Scales image to the dimensions
-func scaleImageToDimension(img image.Image, x, y int) image.Image {
+func scaleImageToDimension(img image.Image, x, y, method int) image.Image {
 	scaled := image.NewRGBA(image.Rect(0, 0, int(x), int(y)))
-	draw.NearestNeighbor.Scale(scaled, scaled.Rect, img, img.Bounds(), draw.Over, nil)
+
+	switch method {
+	case 1:
+		draw.ApproxBiLinear.Scale(scaled, scaled.Rect, img, img.Bounds(), draw.Over, nil)
+	case 2:
+		draw.NearestNeighbor.Scale(scaled, scaled.Rect, img, img.Bounds(), draw.Over, nil)
+	case 3:
+		draw.CatmullRom.Scale(scaled, scaled.Rect, img, img.Bounds(), draw.Over, nil)
+	default:
+		draw.BiLinear.Scale(scaled, scaled.Rect, img, img.Bounds(), draw.Over, nil)
+	}
 	return scaled
 }
 
@@ -452,7 +462,7 @@ func mapCharacters(characters string, resolution int) map[string][][]int {
 		// _ = fontData
 		renderCharacter, _ := renderText(string(character), gomono.TTF, 20, 72, image.Black, image.Transparent)
 		croppedCharacter := cropImageToDimension(renderCharacter, 0, 5, 14, 26)
-		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 2)
+		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 3)
 		if *debug {
 			saveImage(croppedCharacter, fmt.Sprintf("%d.png", character))
 		}
