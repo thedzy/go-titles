@@ -167,7 +167,7 @@ func main() {
 	// Debug characters
 	if *debug {
 		for key, value := range characterMap {
-			fmt.Printf("Key: %s\n", key)
+			fmt.Printf("Key: %s %d\n", key, []rune(key)[0])
 			drawMatrix(value)
 		}
 		os.Exit(255)
@@ -203,6 +203,7 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 	invertedMatch := " "
 	invertedBestScore := 0.0
 	inverted := false
+	perfectMatches := make(map[string]bool)
 	for character, matrix := range characterMap {
 		var score float64
 		switch method {
@@ -234,7 +235,9 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 			inverted = true
 		}
 	}
-
+	if len(perfectMatches) > 1 {
+		// choose randomly
+	}
 	return match, inverted
 }
 
@@ -242,7 +245,7 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 func renderText(text, fontName string, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
-	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*2.2)))
+	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*1.2)))
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	var textImageRect fixed.Point26_6
@@ -306,6 +309,7 @@ func renderText(text, fontName string, fontSize, imageDPI float64, foreground, b
 
 		// Determine the rendering bounds of the text
 		bounds, _ := fontDrawer.BoundString(text)
+		println(">>", fontDrawer.Src.Bounds().Dx())
 
 		return render, fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
 	} else {
@@ -327,7 +331,7 @@ func cropImageToDimension(img image.Image, x, y fixed.Int26_6) image.Image {
 	return cropped
 }
 
-// CropBlank Function to crop the image and remove blank space
+// cropBlank Function to crop the image and remove blank space
 func cropBlank(img image.Image) image.Image {
 	bounds := img.Bounds()
 	minX, minY, maxX, maxY := bounds.Max.X, bounds.Max.Y, 0, 0
@@ -553,7 +557,7 @@ func drawMatrix(value [][]int) {
 	fmt.Println()
 }
 
-// calculateMSE Simple Mean Squared Error
+// calculateMSE Compares 2 matrix based on a Mean Squared Error
 func calculateMSE(matrix1, matrix2 [][]int) float64 {
 	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
 		fmt.Printf("%d,%d != %d,%d\n", len(matrix1), len(matrix1[0]), len(matrix2), len(matrix2[0]))
@@ -575,7 +579,7 @@ func calculateMSE(matrix1, matrix2 [][]int) float64 {
 	return math.Sqrt(mse) // The score ranges from 0 (match) to 255 (exact opposite)
 }
 
-// calculateSSIM
+// calculateABS Compares 2 matrix based on a average of differences in absolute value
 func calculateABS(matrix1, matrix2 [][]int) float64 {
 	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
 		panic("Matrices must have the same dimensions")
@@ -594,7 +598,7 @@ func calculateABS(matrix1, matrix2 [][]int) float64 {
 	return sum / n
 }
 
-// calculateSSIM
+// calculateContrast Compares 2 matrix based on contrast values
 func calculateContrast(matrix1, matrix2 [][]int, thresholdValue int) float64 {
 	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
 		panic("Matrices must have the same dimensions")
@@ -612,6 +616,7 @@ func calculateContrast(matrix1, matrix2 [][]int, thresholdValue int) float64 {
 	return sum / n * 255
 }
 
+// contrastThreshold Compares a number (contrast) and return 0 if its over it
 func contrastThreshold(value, thresholdValue int) float64 {
 	if value > thresholdValue {
 		return 1.0
@@ -619,6 +624,7 @@ func contrastThreshold(value, thresholdValue int) float64 {
 	return 0.0
 }
 
+// isValidFilePath Validates that a complete path exists and is a file
 func isValidFilePath(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -629,6 +635,7 @@ func isValidFilePath(path string) bool {
 	return !info.IsDir()
 }
 
+// isValidSavePath Validates that the parent directory of a path exists
 func isValidSavePath(path string) bool {
 	parentDir := filepath.Dir(path)
 	info, err := os.Stat(parentDir)
@@ -641,6 +648,7 @@ func isValidSavePath(path string) bool {
 	return info.IsDir()
 }
 
+// outputToFile Writes a character to a file
 func outputToFile(filename, character string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -701,6 +709,7 @@ func loadCharacterMapFromDisk(filename string) (map[string][][]int, error) {
 	return data, nil
 }
 
+// removeDuplicates Removes duplicates for a string
 func removeDuplicates(text string) *string {
 	charMap := make(map[rune]bool)
 	var result string
