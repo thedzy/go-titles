@@ -259,20 +259,20 @@ func getFontBytes(fontName string) []byte {
 func renderText(text string, fontBytes []byte, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
-	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text), int(fontSize*2.0)))
+	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize*2.0)))
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	fontData, err := opentype.Parse(fontBytes)
 	if err != nil {
-		log.Fatalf("Parse: %v, %s", err, fontName)
+		log.Fatalf("Parse: %v, %s", err, *fontName)
 	}
 
 	face, err := opentype.NewFace(fontData, &opentype.FaceOptions{
 		Size:    fontSize,
 		DPI:     imageDPI,
-		Hinting: font.HintingNone,
+		Hinting: font.HintingFull,
 	})
 	if err != nil {
 		log.Fatalf("NewFace: %v, %s", err, fontName)
@@ -292,20 +292,6 @@ func renderText(text string, fontBytes []byte, fontSize, imageDPI float64, foreg
 
 	return render, fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
 
-}
-
-// cropImageToDimension2 Crops image to the dimensions
-func cropImageToDimension2(img image.Image, x1, y1 int, x2, y2 fixed.Int26_6) image.Image {
-	// Create a rectangle using the fixed-point dimensions
-	rect := image.Rect(0, 0, x2.Floor(), int(float32(y2.Floor())))
-
-	// Create a new RGBA image with the specified dimensions
-	cropped := image.NewRGBA(rect)
-
-	// Copy the cropped region from the original image to the new image
-	draw.Draw(cropped, cropped.Bounds(), img, rect.Min, draw.Src)
-
-	return cropped
 }
 
 // cropImageToDimension Crops image to the dimensions (x1, y1) to (x2, y2)
@@ -465,7 +451,6 @@ func mapCharacters(characters string, resolution int) map[string][][]int {
 		// fontData := getFontData(fontName)
 		// _ = fontData
 		renderCharacter, _ := renderText(string(character), gomono.TTF, 20, 72, image.Black, image.Transparent)
-		// croppedCharacter := scaleImageToDimension(renderCharacter, int(dimensions.Y>>6), int(dimensions.Y>>6))
 		croppedCharacter := cropImageToDimension(renderCharacter, 0, 5, 14, 26)
 		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 2)
 		if *debug {
