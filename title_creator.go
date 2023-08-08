@@ -31,7 +31,7 @@ var (
 	text              = flag.String("text", "Hello World!", "text to render")
 	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
 	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
-	pixelAspect       = flag.Float64("aspect", 0.66, "character height to width")
+	pixelAspect       = flag.Float64("aspect", 0.5, "character height to width")
 	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
 	fontSize          = flag.Float64("size", 300.0, "font size in points")
 	maxWidth          = flag.Int("max-width", 0, "maximium width to render")
