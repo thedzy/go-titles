@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/golang/freetype"
+	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -239,6 +240,21 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 		// choose randomly
 	}
 	return match, inverted
+}
+
+func getFontData(fontName string) *truetype.Font {
+	fontBytes, err := ioutil.ReadFile(fontName)
+	if err != nil {
+		log.Fatalf("ReadFile: %v, %s", err, fontName)
+	}
+
+	fontData, err := freetype.ParseFont(fontBytes)
+	if err != nil {
+		log.Fatalf("ParseFont: %v, %s", err, fontName)
+
+	}
+
+	return fontData
 }
 
 // RenderText to image
