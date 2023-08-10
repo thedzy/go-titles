@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"golang.org/x/image/font/gofont/gomono"
-
-	// "github.com/golang/freetype"
-	// "github.com/golang/freetype/truetype"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 	"golang.org/x/sys/unix"
 	"image"
@@ -23,6 +21,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -32,7 +31,7 @@ var (
 	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
 	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
 	pixelAspect       = flag.Float64("aspect", 0.5, "character height to width")
-	fontName          = flag.String("font", "/System/Library/Fonts/Supplemental/Arial.ttf", "filename of the ttf font")
+	fontName          = flag.String("font", getDefaultFont(), "filename of the ttf/otf font")
 	fontSize          = flag.Float64("size", 25.0, "font size in points")
 	maxWidth          = flag.Int("max-width", 0, "maximium width to render")
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
@@ -46,9 +45,52 @@ var (
 	debug = flag.Bool("debug", false, "debug mode")
 )
 
+type SerializableFont struct {
+	FamilyName string // Replace this with the fields you need
+	// Add other fields if needed
+}
+
 func main() {
+	// Custom help usage
+	flag.Usage = func() {
+		flagSet := flag.CommandLine
+		fmt.Printf("Usage: %s\n\n", filepath.Base(flagSet.Name()))
+
+		fmt.Println("Create a title\n")
+
+		fmt.Println("optional arguments:")
+		order := map[string][]string{
+			"display":      {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "mode", "allow-inverted"},
+			"input/output": {"load", "save", "output"},
+		}
+		for key, values := range order {
+			fmt.Println(key + ":")
+			for _, value := range values {
+				flag := flagSet.Lookup(value)
+				fmt.Printf("    --%s", flag.Name)
+				if flag.DefValue != "0" && flag.DefValue != "" {
+					fmt.Printf("=%s", flag.Value)
+				} else {
+					fmt.Printf("=%s", "None")
+
+				}
+				fmt.Println()
+				fmt.Printf("        %s ", flag.Usage)
+				if flag.DefValue != "0" && flag.DefValue != "" && flag.DefValue != "false" {
+					fmt.Printf("(default %s)", flag.DefValue)
+				}
+				fmt.Println()
+			}
+		}
+	}
 	flag.Parse()
+
 	displayCharacters = removeSpecialCharactersAndDuplicates(*displayCharacters)
+
+	if !isValidFilePath(*fontName) {
+		fmt.Printf("%s does not exist", *fontName)
+		os.Exit(1)
+	}
 
 	// Set output
 	screenOutput := true
@@ -94,9 +136,9 @@ func main() {
 	*fontSize = *fontSize * float64(*displayResolution)
 
 	// Draw title
-	fontBytes := getFontBytes(*fontName)
+	fontBytes := getFont(*fontName)
 	_ = fontBytes
-	renderImage, textImageRect := renderText(*text, fontBytes, *fontSize, 72.0, image.White, image.Transparent)
+	renderImage, textImageRect := renderText(*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
 	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6), int(textImageRect.Y>>6))
 
 	// Check if the image width is greater than window width and if we are rending to screen
@@ -245,18 +287,64 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 	return match, inverted
 }
 
-// getFontBytes Get font btyes from file
-func getFontBytes(fontName string) []byte {
+// getFont Get font from file
+func getFont(fontName string) *sfnt.Font {
 	fontBytes, err := ioutil.ReadFile(fontName)
 	if err != nil {
 		log.Fatalf("ReadFile: %v, %s", err, fontName)
 	}
+	// magicBtyes := string(fontBytes[:4])
+	// if magicBtyes == "ttcf" {
+	//	collection, err := sfnt.ParseCollection(fontBytes)
+	//	if err != nil {
+	//		log.Fatal(err)
+	//	}
+	//	firstFont, err := collection.Font(0)
+	//	if err != nil {
+	//		log.Fatalf("Font: %v", err)
+	//	}
+	//
+	//	return firstFont
+	// } else {
+	//	fontData, err := opentype.Parse(fontBytes)
+	//	if err != nil {
+	//		fmt.Println(magicBtyes)
+	//		log.Fatalf("Parse: %v, %s", err, fontName)
+	//	}
+	//	return fontData
+	// }
+	switch filepath.Ext(fontName) {
+	case ".dfont":
+		fallthrough
+	case ".ttc":
+		fallthrough
+	case ".otc":
+		collection, err := sfnt.ParseCollection(fontBytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fontData, err := collection.Font(0)
+		if err != nil {
+			log.Fatalf("Font collection: %v", err)
+		}
 
-	return fontBytes
+		return fontData
+	case ".ttf":
+		fallthrough
+	case ".otf":
+		fallthrough
+	case "":
+		fontData, err := opentype.Parse(fontBytes)
+		if err != nil {
+			log.Fatalf("Parse: %v, %s", err, fontName)
+		}
+		return fontData
+	}
+	return nil
 }
 
 // RenderText to image
-func renderText(text string, fontBytes []byte, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
+func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
 	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize*2.0)))
@@ -264,12 +352,7 @@ func renderText(text string, fontBytes []byte, fontSize, imageDPI float64, foreg
 
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
-	fontData, err := opentype.Parse(fontBytes)
-	if err != nil {
-		log.Fatalf("Parse: %v, %s", err, *fontName)
-	}
-
-	face, err := opentype.NewFace(fontData, &opentype.FaceOptions{
+	face, err := opentype.NewFace(&fontData, &opentype.FaceOptions{
 		Size:    fontSize,
 		DPI:     imageDPI,
 		Hinting: font.HintingFull,
@@ -460,7 +543,11 @@ func mapCharacters(characters string, resolution int) map[string][][]int {
 	for _, character := range characters {
 		// fontData := getFontData(fontName)
 		// _ = fontData
-		renderCharacter, _ := renderText(string(character), gomono.TTF, 20, 72, image.Black, image.Transparent)
+		fontData, err := sfnt.Parse(gomono.TTF)
+		if err != nil {
+			log.Fatalf("Parse: %v, %s", err, *fontName)
+		}
+		renderCharacter, _ := renderText(string(character), *fontData, 20, 72, image.Black, image.Transparent)
 		croppedCharacter := cropImageToDimension(renderCharacter, 0, 5, 14, 26)
 		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 3)
 		if *debug {
@@ -715,4 +802,18 @@ func removeSpecialCharactersAndDuplicates(input string) *string {
 	filtered := result.String()
 
 	return &filtered
+}
+
+// getDefaultFont Get the default font for each OS
+func getDefaultFont() string {
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		return "/System/Library/Fonts/Helvetica.ttc"
+	case "windows":
+		return "C:\\Windows\\Fonts\\arial.ttf"
+	case "linux":
+		return "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+	default:
+		return ""
+	}
 }
