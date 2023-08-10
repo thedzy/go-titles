@@ -139,7 +139,7 @@ func main() {
 	fontBytes := getFont(*fontName)
 	_ = fontBytes
 	renderImage, textImageRect := renderText(*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
-	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6), int(textImageRect.Y>>6))
+	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution)
 
 	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
@@ -170,7 +170,7 @@ func main() {
 	// Scale to pixel ratio
 	bounds := croppedImage.Bounds()
 	croppedImage = scaleImageToDimension(croppedImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect), 0)
-	croppedImage = cropBlank(croppedImage)
+	//croppedImage = cropBlank(croppedImage)
 
 	// Build and fill a 4D matrix of the title
 	brightnessMatrix := getEmptyBrightnessMatrix(croppedImage, *displayResolution)
