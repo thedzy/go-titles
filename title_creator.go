@@ -183,6 +183,24 @@ func main() {
 
 	// Save character map
 	if *saveFile != "" && isValidSavePath(*saveFile) {
+		if isValidFilePath(*saveFile) {
+			answer := ""
+			for {
+				fmt.Printf("File %s already exists. Do you want to replace it? (yes/no): ", *saveFile)
+
+				reader := bufio.NewReader(os.Stdin)
+				answer, _ = reader.ReadString('\n')
+				answer = strings.TrimSpace(answer)
+
+				if answer == "no" || answer == "n" {
+					os.Exit(2)
+				}
+				if answer == "yes" || answer == "y" {
+					break
+				}
+			}
+		}
+
 		if strings.HasSuffix(*saveFile, ".json") {
 			fmt.Println("Save json to disk")
 
@@ -343,7 +361,7 @@ func getFont(fontName string) *sfnt.Font {
 	return nil
 }
 
-// RenderText to image
+// renderText to image
 func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
