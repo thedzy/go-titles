@@ -1,9 +1,8 @@
 # title_creator
 
-Print in large font in your terminal/console \
-Complete rewrites
+## Print in large font in your terminal/console
 
-This was an attempt to write th python version of title_creator in Go.  The idea was to improve the speed.  And yes, it is faster, it's not as reliable to render with all fonts.
+This was an attempt to rewrite the python version of title_creator in Go.  The idea was to improve the speed.  And yes, it is much faster but with caveats, see [State](#State). 
 
 ``` console
   ,,,_    _gMMp,                 _qqq,   ,qqq
@@ -140,15 +139,15 @@ input/output:
 ## Why?
 I like starting my programs with a nice title. 
 **So why another?** I wanted to see if go could improve the performance over python.
-**Was it fast?** Yes.
+**Was it fast?** Yes. Much
 
 ## Improvements?
-Automated way to find fonts cross-platform
 
-## State?
-- Some fonts it does not render some characters, for example, the letter 'n' might not appear when using myfont.ttf
-- Unicode character rarely render, this matters for title and for characters used in the character map, but will write to screen
-  - Workaround: Use the pyton script to create json maps and use those in the go program.  It will allow you to use those character to render but still not be in the title, for that stick the python version
+
+## State
+- Some fonts it does not render some characters, for example, the letter 'n' might not appear when using myfont.ttf??
+- Unicode character beyond 1byte (255/\u00FF) do not render, this matters for title and for characters used in the character map, but will write to screen
+  - Workaround: Use the python script to create json maps and use those in the go program.  It will allow you to use those character to render but still not be in the title, for that stick the python version
 - Does not work with all fonts.
 
 ## New
