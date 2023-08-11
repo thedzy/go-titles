@@ -45,11 +45,6 @@ var (
 	debug = flag.Bool("debug", false, "debug mode")
 )
 
-type SerializableFont struct {
-	FamilyName string // Replace this with the fields you need
-	// Add other fields if needed
-}
-
 func main() {
 	// Custom help usage
 	flag.Usage = func() {
@@ -137,7 +132,6 @@ func main() {
 
 	// Draw title
 	fontBytes := getFont(*fontName)
-	_ = fontBytes
 	renderImage, textImageRect := renderText(*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
 	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution)
 
@@ -170,7 +164,7 @@ func main() {
 	// Scale to pixel ratio
 	bounds := croppedImage.Bounds()
 	croppedImage = scaleImageToDimension(croppedImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect), 0)
-	//croppedImage = cropBlank(croppedImage)
+	// croppedImage = cropBlank(croppedImage)
 
 	// Build and fill a 4D matrix of the title
 	brightnessMatrix := getEmptyBrightnessMatrix(croppedImage, *displayResolution)
@@ -193,36 +187,36 @@ func main() {
 				answer = strings.TrimSpace(answer)
 
 				if answer == "no" || answer == "n" {
-					os.Exit(2)
+					break
 				}
 				if answer == "yes" || answer == "y" {
+					if strings.HasSuffix(*saveFile, ".json") {
+						fmt.Println("Save json to disk")
+
+						// Open a file for writing
+						file, err := os.Create(*saveFile)
+						if err != nil {
+							log.Fatal(err)
+						}
+						defer file.Close()
+
+						// Create a JSON encoder to write to the file
+						encoder := json.NewEncoder(file)
+
+						// Encode the characterMap and write it to the file
+						err = encoder.Encode(characterMap)
+						if err != nil {
+							log.Fatal(err)
+						}
+					} else {
+						fmt.Println("Save map to disk")
+						saveCharacterMapToDisk(characterMap, *saveFile)
+					}
 					break
 				}
 			}
 		}
 
-		if strings.HasSuffix(*saveFile, ".json") {
-			fmt.Println("Save json to disk")
-
-			// Open a file for writing
-			file, err := os.Create(*saveFile)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer file.Close()
-
-			// Create a JSON encoder to write to the file
-			encoder := json.NewEncoder(file)
-
-			// Encode the characterMap and write it to the file
-			err = encoder.Encode(characterMap)
-			if err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			fmt.Println("Save map to disk")
-			saveCharacterMapToDisk(characterMap, *saveFile)
-		}
 	} else if !isValidSavePath(*saveFile) {
 		fmt.Printf("%s, is not a valid path\n", *saveFile)
 		os.Exit(2)
@@ -311,26 +305,7 @@ func getFont(fontName string) *sfnt.Font {
 	if err != nil {
 		log.Fatalf("ReadFile: %v, %s", err, fontName)
 	}
-	// magicBtyes := string(fontBytes[:4])
-	// if magicBtyes == "ttcf" {
-	//	collection, err := sfnt.ParseCollection(fontBytes)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//	firstFont, err := collection.Font(0)
-	//	if err != nil {
-	//		log.Fatalf("Font: %v", err)
-	//	}
-	//
-	//	return firstFont
-	// } else {
-	//	fontData, err := opentype.Parse(fontBytes)
-	//	if err != nil {
-	//		fmt.Println(magicBtyes)
-	//		log.Fatalf("Parse: %v, %s", err, fontName)
-	//	}
-	//	return fontData
-	// }
+
 	switch filepath.Ext(fontName) {
 	case ".dfont":
 		fallthrough
@@ -386,7 +361,7 @@ func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, for
 		Dot:  fixed.P(0, int(fontSize)),
 	}
 
-	fontDrawer.DrawString(text)
+	fontDrawer.DrawString(fmt.Sprintf("%s", text))
 
 	// Determine the rendering bounds of the text
 	bounds, _ := fontDrawer.BoundString(text)
@@ -559,8 +534,6 @@ func mapCharacters(characters string, resolution int) map[string][][]int {
 	characterMap := make(map[string][][]int)
 
 	for _, character := range characters {
-		// fontData := getFontData(fontName)
-		// _ = fontData
 		fontData, err := sfnt.Parse(gomono.TTF)
 		if err != nil {
 			log.Fatalf("Parse: %v, %s", err, *fontName)
@@ -594,7 +567,6 @@ func getImageMatrix(img image.Image) [][]int {
 		for y := 0; y < resolution; y++ {
 			rgba := img.At(y, x).(color.RGBA)
 			// Calculate the brightness value
-			// brightness := (uint32(rgba.R) + uint32(rgba.G) + uint32(rgba.B)) / 3
 			brightness := uint32(rgba.A)
 
 			// Store the brightness value in the matrix
