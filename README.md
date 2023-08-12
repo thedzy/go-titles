@@ -2,7 +2,7 @@
 
 ## Print in large font in your terminal/console
 
-This was an attempt to rewrite the python version of title_creator in Go.  The idea was to improve the speed.  And yes, it is much faster but with caveats, see [State](#State). 
+This was an attempt to rewrite the python version of title_creator in Go.  The idea was to improve the speed.  And yes, it is much faster but with caveats, see [State](#state). 
 
 ``` console
   ,,,_    _gMMp,                 _qqq,   ,qqq
@@ -142,7 +142,7 @@ I like starting my programs with a nice title.
 **Was it fast?** Yes. Much
 
 ## Improvements?
-
+Add more font types
 
 ## State
 - Some fonts it does not render some characters, for example, the letter 'n' might not appear when using myfont.ttf??
