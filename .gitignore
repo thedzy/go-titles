@@ -7,7 +7,9 @@
 *.dll
 *.so
 *.dylib
-title_creator
+
+# Compiled code
+/title_creator
 
 # Test binary, built with `go test -c`
 *.test
@@ -24,4 +26,4 @@ title_creator
 # Go workspace file
 go.work
 
-**/*.DS_Store
+DS_Store
