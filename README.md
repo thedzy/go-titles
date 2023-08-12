@@ -142,7 +142,7 @@ I like starting my programs with a nice title.
 **Was it fast?** Yes. Much
 
 ## Improvements?
-Add more font types
+qAdd more font types
 
 ## State
 - Some fonts it does not render some characters, for example, the letter 'n' might not appear when using myfont.ttf??
