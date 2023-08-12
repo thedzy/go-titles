@@ -28,7 +28,7 @@ import (
 var (
 	// Render options
 	text              = flag.String("text", "Hello World!", "text to render")
-	displayCharacters = flag.String("characters", " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}", "text to render, ignored when loading a map")
+	displayCharacters = flag.String("characters", "", "text to render, ignored when loading a map")
 	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
 	pixelAspect       = flag.Float64("aspect", 0.5, "character height to width")
 	fontName          = flag.String("font", getDefaultFont(), "filename of the ttf/otf font")
@@ -67,7 +67,6 @@ func main() {
 					fmt.Printf("=%s", flag.Value)
 				} else {
 					fmt.Printf("=%s", "None")
-
 				}
 				fmt.Println()
 				fmt.Printf("        %s ", flag.Usage)
@@ -80,7 +79,18 @@ func main() {
 	}
 	flag.Parse()
 
-	displayCharacters = removeSpecialCharactersAndDuplicates(*displayCharacters)
+	// Process any arguments that new validation or alteration
+	fmt.Println(*displayCharacters)
+	if *displayCharacters == "" {
+		for x := 32; x < 127; x++ {
+			*displayCharacters += string(rune(x))
+		}
+		for x := 161; x < 256; x++ {
+			*displayCharacters += string(rune(x))
+		}
+	} else {
+		displayCharacters = removeSpecialCharactersAndDuplicates(*displayCharacters)
+	}
 
 	if !isValidFilePath(*fontName) {
 		fmt.Printf("%s does not exist", *fontName)
@@ -133,7 +143,7 @@ func main() {
 	// Draw title
 	fontBytes := getFont(*fontName)
 	renderImage, textImageRect := renderText(*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
-	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution)
+	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution*2)
 
 	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
@@ -361,7 +371,7 @@ func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, for
 		Dot:  fixed.P(0, int(fontSize)),
 	}
 
-	fontDrawer.DrawString(fmt.Sprintf("%s", text))
+	fontDrawer.DrawString(text)
 
 	// Determine the rendering bounds of the text
 	bounds, _ := fontDrawer.BoundString(text)
