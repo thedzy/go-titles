@@ -2,7 +2,8 @@
 
 ## Print in large font in your terminal/console
 
-This was an attempt to rewrite the python version of title_creator in Go.  The idea was to improve the speed.  And yes, it is much faster but with caveats, see [State](#state). 
+This was an attempt to rewrite the python version of title_creator in Go. The idea was to improve the speed. And yes, it
+is much faster but with caveats, see [State](#state).
 
 ``` console
   ,,,_    _gMMp,                 _qqq,   ,qqq
@@ -41,7 +42,8 @@ This was an attempt to rewrite the python version of title_creator in Go.  The i
 
 ## What?
 
-### title_creator2.py
+### title_creator.go
+
 title_creator is a single use script that will print a title in a window or to file
 
 ``` console
@@ -102,6 +104,8 @@ title_creator is a single use script that will print a title in a window or to f
  ▔▔  ▔ ▝▘▔▔▔     ▔▔▔  ▔▔▔ ▔ ▔▔▔ ▔ ▔     ▔    ▔     ▔      ▔▔  ▔▔▔ ▔   ▔ ▔   ▔▔▔ ▔▔▔      ▔▔   ▔  ▔▔▔ ▔▔▔      ▔   ▔ ▀ ▔▔▔     ▔▔▔▔  ▔▔▔▔▔  ▔      ▔▔   ▔▔  ▔▔  ▔ ▔▔  ▔  ▀     ▔▔▔  ▔▔   ▔▔▟
 ```
 
+### Usage
+
 ```console
 Usage: title_creator
 
@@ -136,20 +140,61 @@ input/output:
         save output to file
 ```
 
+### Example
+
+```
+title_creator -font /Library/Fonts/CooperBlackStd.otf -resolution 64 -allow-inverted=false -text "Numbers" -characters="1234567890#%$^*.,-+<> "
+1234567890#%.,-+<>
+  ,,,,,        ,,,,,
+<%%%%%%0,     %%%%%%%>                                           ,,#%%%%>
+  %%%%%%%%%     %%%0                                             %%%%%%%
+   %%%%%%%%%%,  %%%>  ,,+4##%  ,,+##%%    ,,+#%  ,4#%%,  ,4#%%,    %%%%% ,+#%%,      ,+#%%%+,    ,,+##% ,4%%,   ,4%%%4#%,
+   %%%%%%%%%%%%#%%%   70%%%%%  %%%%%%%  #%%%%%%0%%%%%%%%%%%%%%%%   %%%%%%%%%%%%%,  ,%%%0770%%%, %%%%%%%%%%%%%  0%%%%0%%%%,
+   %%%%7%%%%%%%%%%%     %%%%%   4%%%%%   %%%%%%7 3%%%%%#  %%%%%%   %%%%%7 7%%%%%% 2%%%%%,,#%%%%  3%%%%%0%%%%#  %%%%%%, 77
+   %%%1   %%%%%%%%%     %%%%%   4%%%%%   4%%%%%   %%%%%7  %%%%%%   %%%%%   3%%%%% %%%%%0%%%%%%#  4%%%%%        7%%%%%%%%,
+   %%%8     %%%%%%%     %%%%%,  8%%%%%   4%%%%%   %%%%%1  %%%%%%   %%%%%,  ,%%%%# %%%%%0,   ,,,  4%%%%%       ,%,7%%%%%%%,
+ <%%%%%%      7%%%%     %%%%%%%%%%%%%%% ,%%%%%%, #%%%%%% ,%%%%%%, ,%%%%%%,,%%%%7   %%%%%%%%%%%7 <%%%%%%%%     3%%%,#%%%%%
+ 7#%%%#7        7%#      7#%%#7  %%##7  7#%%%##7 9#%%%#7 79#%%##      7#%%%#7        79%%%#77   7#%%%%##7      7###%%%#7
+```
+
 ## Why?
-I like starting my programs with a nice title. 
+
+I like starting my programs with a nice title.
 **So why another?** I wanted to see if go could improve the performance over python.
 **Was it fast?** Yes. Much
 
+## How?
+
+1. It takes the ***<span style="color: yellow;">text</span>*** and renders it to an image using the
+   ***<span style="color: yellow;">font</span>***  and the ***<span style="color: yellow;">size</span>***
+2. It scales the image to no bigger than **<span style="color: yellow;">max-width</span>**.
+2. It scales the image to the inverse of ***<span style="color: yellow;">aspect</span>*** so that when drawn to screen
+   it matches the original image.
+3. It crops the image into chucks of ***<span style="color: yellow;">resolution</span>*** x
+   ***<span style="color: yellow;">resolution</span>*** and puts it into a 4D array.
+4. It then takes the ***<span style="color: yellow;">characters</span>*** and maps each one to a 2D array of brightness
+   values, and optionally ***<span style="color: yellow;">save</span>s*** or
+   ***<span style="color: yellow;">load</span>s*** this
+5. It then goes through 2 dimensions of the 4D array and compares ,using the
+   ***<span style="color: yellow;">mode</span>***, to see which is the best match, and optionally
+   ***<span style="color: yellow;">allow-inverted</span>*** versions of the character
+6. It draws each matching character to screen or ***<span style="color: yellow;">output</span>s*** to file
+
 ## Improvements?
-qAdd more font types
+
+Add more font types
 
 ## State
+
 - Some fonts it does not render some characters, for example, the letter 'n' might not appear when using myfont.ttf??
-- Unicode character beyond 1byte (255/\u00FF) do not render, this matters for title and for characters used in the character map, but will write to screen
-  - Workaround: Use the python script to create json maps and use those in the go program.  It will allow you to use those character to render but still not be in the title, for that stick the python version
+- Unicode character beyond 1byte (255 or \u00FF) do not render, this matters for title and for characters used in the
+  character map, but will write to screen
+    - Workaround: Use the python script to create json maps and use those in the go program. It will allow you to use
+      those character to render but still not be in the title, for that stick the python version
 - Does not work with all fonts.
 
 ## New
+
 ### 1.0
+
 Create a title and save/load the character map created
