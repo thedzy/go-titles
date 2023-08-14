@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.x
+
+      - name: Build for Linux
+        run: GOOS=linux GOARCH=amd64 go build -o title_creator-linux
+
+      - name: Build for macOS
+        run: GOOS=darwin GOARCH=amd64 go build -o title_creator-macos
+
+      - name: Build for Windows
+        run: GOOS=windows GOARCH=amd64 go build -o title_creator.exe
+
+      - name: Archive Builds
+        run: |
+          mkdir builds
+          mv title_creator-linux builds/title_creator
+          mv title_creator-macos builds/title_creator
+          mv title_creator.exe builds/title_creator.exe
+        working-directory: ${{ github.workspace }}
+
+      - name: Upload Builds
+        uses: actions/upload-artifact@v2
+        with:
+          name: builds
+          path: builds
