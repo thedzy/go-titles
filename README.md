@@ -126,7 +126,7 @@ display:
     --size=12
         font size in points (default 25)
     --max-width=None
-        maximium width to render
+        maximum width to render
     --mode=20
         render mode (default 20)
     --allow-inverted=false
@@ -168,17 +168,17 @@ I like starting my programs with a nice title.
 1. It takes the ***<span style="color: yellow;">text</span>*** and renders it to an image using the
    ***<span style="color: yellow;">font</span>***  and the ***<span style="color: yellow;">size</span>***
 2. It scales the image to no bigger than **<span style="color: yellow;">max-width</span>**.
-2. It scales the image to the inverse of ***<span style="color: yellow;">aspect</span>*** so that when drawn to screen
+3. It scales the image to the inverse of ***<span style="color: yellow;">aspect</span>*** so that when drawn to screen
    it matches the original image.
-3. It crops the image into chucks of ***<span style="color: yellow;">resolution</span>*** x
+4. It crops the image into chucks of ***<span style="color: yellow;">resolution</span>*** x
    ***<span style="color: yellow;">resolution</span>*** and puts it into a 4D array.
-4. It then takes the ***<span style="color: yellow;">characters</span>*** and maps each one to a 2D array of brightness
+5. It then takes the ***<span style="color: yellow;">characters</span>*** and maps each one to a 2D array of brightness
    values, and optionally ***<span style="color: yellow;">save</span>s*** or
    ***<span style="color: yellow;">load</span>s*** this
-5. It then goes through 2 dimensions of the 4D array and compares ,using the
+6. It then goes through 2 dimensions of the 4D array and compares ,using the
    ***<span style="color: yellow;">mode</span>***, to see which is the best match, and optionally
    ***<span style="color: yellow;">allow-inverted</span>*** versions of the character
-6. It draws each matching character to screen or ***<span style="color: yellow;">output</span>s*** to file
+7. It draws each matching character to screen or ***<span style="color: yellow;">output</span>s*** to file
 
 ## Improvements?
 
@@ -187,7 +187,7 @@ Add more font types
 ## State
 
 - Some fonts it does not render some characters, for example, the letter 'n' might not appear when using myfont.ttf??
-- Unicode character beyond 1byte (255 or \u00FF) do not render, this matters for title and for characters used in the
+- Unicode characters beyond 1byte (255 or \u00FF) do not render, this matters for title and for characters used in the
   character map, but will write to screen
     - Workaround: Use the python script to create json maps and use those in the go program. It will allow you to use
       those character to render but still not be in the title, for that stick the python version
