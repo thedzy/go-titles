@@ -49,6 +49,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: builds/*
-          prerelease: false  # Change to 'true' if this is a pre-release
-          files_glob: true
+          prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
