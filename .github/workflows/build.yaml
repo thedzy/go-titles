@@ -5,12 +5,23 @@ on:
     branches:
       - main
 
-jobs:
+jjobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        env:
+          GO111MODULE: auto
+          CGO_ENABLED: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Set up Node.js 16
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'
 
       - name: Set up Go
         uses: actions/setup-go@v2
