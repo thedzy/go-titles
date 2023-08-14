@@ -45,7 +45,7 @@ jobs:
           name: builds
           path: builds
 
-      - name: Create or Update Release
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref }}
