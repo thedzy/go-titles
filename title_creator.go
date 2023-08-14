@@ -12,7 +12,6 @@ import (
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
-	"golang.org/x/sys/unix"
 	"image"
 	"image/color"
 	"image/png"
@@ -157,7 +156,7 @@ func main() {
 				fmt.Println(err)
 				*maxWidth = math.MaxInt32
 			}
-			*maxWidth = int(winSize.Col)
+			*maxWidth = winSize
 		} else {
 			*maxWidth = math.MaxInt32
 		}
@@ -573,16 +572,6 @@ func getImageMatrix(img image.Image) [][]int {
 	}
 
 	return characterMatrix
-}
-
-// getWinSize Get the full size of the window (*nix/mac)
-func getWinSize() (*unix.Winsize, error) {
-	// Get window dimensions for Unix
-	winDimensions, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
-	if err != nil {
-		return nil, err
-	}
-	return winDimensions, nil
 }
 
 // saveImage Debugging, save image to disk
