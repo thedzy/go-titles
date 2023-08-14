@@ -193,6 +193,12 @@ Add more font types
       those character to render but still not be in the title, for that stick the python version
 - Does not work with all fonts.
 
+## Notes/Troubleshooting:
+### “title_creator” cannot be opened because the developer cannot be verified.
+xattr -d com.apple.quarantine /path/to/title_creator
+### zsh: permission denied: /path/to/title_creator
+chmod a+x /path/to/title_creator
+
 ## New
 
 ### 1.0
