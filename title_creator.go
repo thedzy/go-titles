@@ -33,7 +33,7 @@ var (
 	pixelAspect       = flag.Float64("aspect", 0.5, "character height to width")
 	fontName          = flag.String("font", getDefaultFont(), "filename of the ttf/otf font")
 	fontSize          = flag.Float64("size", 25.0, "font size in points")
-	maxWidth          = flag.Int("max-width", 0, "maximium width to render")
+	maxWidth          = flag.Int("max-width", 0, "maximum width to render")
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
 	renderMode        = flag.Int("mode", 20, "render mode")
 
@@ -51,6 +51,7 @@ func main() {
 		flagSet := flag.CommandLine
 		fmt.Printf("Usage: %s\n\n", filepath.Base(flagSet.Name()))
 
+		//goland:noinspection GoPrintFunctions
 		fmt.Println("Create a title\n")
 
 		fmt.Println("optional arguments:")
@@ -61,17 +62,17 @@ func main() {
 		for key, values := range order {
 			fmt.Println(key + ":")
 			for _, value := range values {
-				flag := flagSet.Lookup(value)
-				fmt.Printf("    --%s", flag.Name)
-				if flag.DefValue != "0" && flag.DefValue != "" {
-					fmt.Printf("=%s", flag.Value)
+				flagOption := flagSet.Lookup(value)
+				fmt.Printf("    --%s", flagOption.Name)
+				if flagOption.DefValue != "0" && flagOption.DefValue != "" {
+					fmt.Printf("=%s", flagOption.Value)
 				} else {
 					fmt.Printf("=%s", "None")
 				}
 				fmt.Println()
-				fmt.Printf("        %s ", flag.Usage)
-				if flag.DefValue != "0" && flag.DefValue != "" && flag.DefValue != "false" {
-					fmt.Printf("(default %s)", flag.DefValue)
+				fmt.Printf("        %s ", flagOption.Usage)
+				if flagOption.DefValue != "0" && flagOption.DefValue != "" && flagOption.DefValue != "false" {
+					fmt.Printf("(default %s)", flagOption.DefValue)
 				}
 				fmt.Println()
 			}
@@ -165,10 +166,13 @@ func main() {
 	if int(textImageRect.X>>6) > displayWidth {
 		// Calculate the scale factor to resize the image to width 120
 		scale := float64(displayWidth) / float64(textImageRect.X>>6)
-		croppedImage = scaleImageToDimension(croppedImage, int(displayWidth), int(float64(textImageRect.Y>>6)*scale), 0)
+		croppedImage = scaleImageToDimension(croppedImage, displayWidth, int(float64(textImageRect.Y>>6)*scale), 0)
 	}
 	if *debug {
-		saveImage(croppedImage, "title.png")
+		err := saveImage(croppedImage, "title.png")
+		if err != nil {
+			log.Println(err)
+		}
 	}
 
 	// Scale to pixel ratio
@@ -210,7 +214,11 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				defer file.Close()
+				defer func(file *os.File) {
+					err := file.Close()
+					if err != nil {
+					}
+				}(file)
 
 				// Create a JSON encoder to write to the file
 				encoder := json.NewEncoder(file)
@@ -262,7 +270,9 @@ func main() {
 		if screenOutput {
 			fmt.Println()
 		} else {
-			outputToFile(*outputFile, "\n")
+			if err := outputToFile(*outputFile, "\n"); err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 	if !screenOutput {
@@ -357,9 +367,9 @@ func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, for
 
 	// Initialize the context.
 	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize*2.5)))
-	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
+	draw.Draw(render, render.Bounds(), background, image.Pt(0, 0), draw.Src)
 
-	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
+	draw.Draw(render, render.Bounds(), background, image.Pt(0, 0), draw.Src)
 
 	face, err := opentype.NewFace(&fontData, &opentype.FaceOptions{
 		Size:    fontSize,
@@ -367,7 +377,7 @@ func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, for
 		Hinting: font.HintingFull,
 	})
 	if err != nil {
-		log.Fatalf("NewFace: %v, %s", err, fontName)
+		log.Fatalf("NewFace: %v, %s", err, *fontName)
 	}
 
 	fontDrawer := font.Drawer{
@@ -396,45 +406,14 @@ func cropImageToDimension(img image.Image, x1, y1, x2, y2 int) image.Image {
 	cropped := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	// Copy the cropped region from the original image to the new image
-	draw.Draw(cropped, cropped.Bounds(), img, image.Point{x1, y1}, draw.Src)
+	draw.Draw(cropped, cropped.Bounds(), img, image.Point{X: x1, Y: y1}, draw.Src)
 
 	return cropped
 }
 
-// cropBlank Function to crop the image and remove blank space
-func cropBlank(img image.Image) image.Image {
-	bounds := img.Bounds()
-	minX, minY, maxX, maxY := bounds.Max.X, bounds.Max.Y, 0, 0
-
-	// Find the minimum and maximum non-empty pixel coordinates
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			if _, _, _, a := img.At(x, y).RGBA(); a != 0 {
-				if x < minX {
-					minX = x
-				}
-				if x > maxX {
-					maxX = x
-				}
-				if y < minY {
-					minY = y
-				}
-				if y > maxY {
-					maxY = y
-				}
-			}
-		}
-	}
-
-	// Create a new cropped image
-	croppedImage := image.NewRGBA(image.Rect(0, 0, maxX-minX, maxY-minY+10))
-	draw.Draw(croppedImage, croppedImage.Bounds(), img, image.Point{minX, minY}, draw.Src)
-	return croppedImage
-}
-
 // scaleImageToDimension Scales image to the dimensions
 func scaleImageToDimension(img image.Image, x, y, method int) image.Image {
-	scaled := image.NewRGBA(image.Rect(0, 0, int(x), int(y)))
+	scaled := image.NewRGBA(image.Rect(0, 0, x, y))
 
 	switch method {
 	case 1:
@@ -469,7 +448,7 @@ func scaleImageToProportions(img image.Image, size, method int) image.Image {
 	// Calculate offsets for centering the resized image
 	offsetX := -(newSize - img.Bounds().Dx()) / 2
 	offsetY := -(newSize - img.Bounds().Dy()) / 2
-	draw.Draw(resized, resized.Bounds(), img, image.Point{offsetX, offsetY}, draw.Src)
+	draw.Draw(resized, resized.Bounds(), img, image.Point{X: offsetX, Y: offsetY}, draw.Src)
 
 	scaled := image.NewRGBA(image.Rect(0, 0, size, size))
 
@@ -495,7 +474,7 @@ func getEmptyBrightnessMatrix(img image.Image, resolution int) [][][][]int {
 	// Define the dimensions of the 2D matrix
 	rows, cols := bounds.Max.Y/resolution, bounds.Max.X/resolution
 
-	// Create the 2D matrix of resXres matrices
+	// Create the 2D matrix of res X res matrices
 	matrix := make([][][][]int, rows)
 
 	// Initialize each element of the  matrix
@@ -512,7 +491,7 @@ func getEmptyBrightnessMatrix(img image.Image, resolution int) [][][][]int {
 	return matrix
 }
 
-// fillBrightnessMatrix reads an image file and fills a matrix of brightness values.
+// fillBrightnessMatrix reads an image file, and it fills a matrix of with brightness values.
 func fillBrightnessMatrix(matrix [][][][]int, img image.Image, resolution int) [][][][]int {
 	// Get the image dimensions
 	bounds := img.Bounds()
@@ -545,7 +524,7 @@ func fillBrightnessMatrix(matrix [][][][]int, img image.Image, resolution int) [
 	return matrix
 }
 
-// mapCharacters Create a brightness map of the chracters
+// mapCharacters Create a brightness map of the characters
 func mapCharacters(characters string, resolution int) map[string][][]int {
 	characterMap := make(map[string][][]int)
 
@@ -558,7 +537,10 @@ func mapCharacters(characters string, resolution int) map[string][][]int {
 		croppedCharacter := cropImageToDimension(renderCharacter, 0, 5, 14, 26)
 		croppedCharacter = scaleImageToProportions(croppedCharacter, resolution, 3)
 		if *debug {
-			saveImage(croppedCharacter, fmt.Sprintf("%d.png", character))
+			err := saveImage(croppedCharacter, fmt.Sprintf("%d.png", character))
+			if err != nil {
+				log.Println(err)
+			}
 		}
 
 		characterMap[string(character)] = getImageMatrix(croppedCharacter)
@@ -604,12 +586,21 @@ func getWinSize() (*unix.Winsize, error) {
 }
 
 // saveImage Debugging, save image to disk
-func saveImage(img image.Image, name string) {
+func saveImage(img image.Image, name string) error {
 	output, _ := os.Create(name)
-	defer output.Close()
+	defer func(output *os.File) {
+		err := output.Close()
+		if err != nil {
+		}
+	}(output)
 
-	png.Encode(output, img)
+	err := png.Encode(output, img)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("Image saved to %s\n", name)
+
+	return nil
 }
 
 // drawMatrix Debugging, draw a matrix
@@ -662,7 +653,7 @@ func calculateMSE(matrix1, matrix2 [][]int) float64 {
 	return math.Sqrt(mse) // The score ranges from 0 (match) to 255 (exact opposite)
 }
 
-// calculateABS Compares 2 matrix based on a average of differences in absolute value
+// calculateABS Compares 2 matrix based on an average of differences in absolute value
 func calculateABS(matrix1, matrix2 [][]int) float64 {
 	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
 		panic("Matrices must have the same dimensions")
@@ -737,7 +728,11 @@ func outputToFile(filename, character string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+		}
+	}(file)
 
 	writer := bufio.NewWriter(file)
 	_, err = writer.WriteString(character)
@@ -755,7 +750,11 @@ func saveCharacterMapToDisk(data map[string][][]int, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+		}
+	}(file)
 
 	// Create a new encoder for writing
 	encoder := gob.NewEncoder(file)
@@ -777,7 +776,11 @@ func loadCharacterMapFromDisk(filename string) (map[string][][]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+		}
+	}(file)
 
 	// Create a new decoder for reading
 	decoder := gob.NewDecoder(file)
