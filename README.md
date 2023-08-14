@@ -144,7 +144,7 @@ input/output:
 
 ```
 title_creator -font /Library/Fonts/CooperBlackStd.otf -resolution 64 -allow-inverted=false -text "Numbers" -characters="1234567890#%$^*.,-+<> "
-1234567890#%.,-+<>
+
   ,,,,,        ,,,,,
 <%%%%%%0,     %%%%%%%>                                           ,,#%%%%>
   %%%%%%%%%     %%%0                                             %%%%%%%
