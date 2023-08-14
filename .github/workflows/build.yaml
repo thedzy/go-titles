@@ -31,7 +31,6 @@ jobs:
 
       - name: Create Linux Archives
         run: |
-          mkdir archives
           tar -czvf archives/title_creator-linux.tar.gz title_creator
         working-directory: ${{ github.workspace }}
 
@@ -40,7 +39,6 @@ jobs:
 
       - name: Create macos Archives x86
         run: |
-          mkdir archives
           tar -czvf archives/title_creator-macos-intel.tar.gz title_creator
         working-directory: ${{ github.workspace }}
 
@@ -49,7 +47,6 @@ jobs:
 
       - name: Create macos Archives Arm
         run: |
-          mkdir archives
           tar -czvf archives/title_creator-macos-arm.tar.gz title_creator
         working-directory: ${{ github.workspace }}
 
@@ -58,7 +55,6 @@ jobs:
 
       - name: Create Windows Archives
         run: |
-          mkdir archives
           zip -r archives/title_creator-windows.zip title_creator.exe
         working-directory: ${{ github.workspace }}
 
