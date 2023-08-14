@@ -59,15 +59,11 @@ jobs:
           zip -r archives/title_creator-windows.zip title_creator.exe
         working-directory: ${{ github.workspace }}
 
-      - name: Move Archives to Builds
-        run: mv archives/* builds/
-        working-directory: ${{ github.workspace }}
-
       - name: Upload Builds
         uses: actions/upload-artifact@v2
         with:
-          name: builds
-          path: builds
+          name: archives
+          path: archives
 
       - name: Release
         uses: softprops/action-gh-release@v1
