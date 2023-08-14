@@ -18,10 +18,10 @@ jobs:
           go-version: 1.x
 
       - name: Build for Linux
-        run: GOOS=darwin GOARCH=amd64 go build -o title_creator-macos title_creator.go winsize_nix.go
+        run: GOOS=darwin GOARCH=amd64 go build -o title_creator-linux title_creator.go winsize_nix.go
 
       - name: Build for macOS
-        run: GOOS=darwin GOARCH=arm64 go build -o title_creator-macos title_creator.go winsize_nix.go
+        run: GOOS=darwin GOARCH=arm64 go build -o title_creator title_creator.go winsize_nix.go
 
       - name: Build for Windows
         run: GOOS=windows GOARCH=amd64 go build -o title_creator.exe title_creator.go winsize_win.go
@@ -30,9 +30,9 @@ jobs:
       - name: Archive Builds
         run: |
           mkdir builds
-          mv title_creator-linux builds/title_creator
-          mv title_creator-macos builds/title_creator
-          mv title_creator.exe builds/title_creator.exe
+          mv title_creator-linux builds/
+          mv title_creator-macos builds/
+          mv title_creator.exe builds/
         working-directory: ${{ github.workspace }}
 
       - name: Upload Builds
