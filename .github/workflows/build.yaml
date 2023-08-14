@@ -28,7 +28,7 @@ jobs:
           mkdir builds
 
       - name: Build for Linux
-        run: GOOS=linux GOARCH=amd64 go build -o title_creator
+        run: GOOS=linux GOARCH=amd64 go build -o title_creator title_creator.go winsize_nix.go
 
       - name: Create Linux Archives
         run: |
@@ -36,7 +36,7 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - name: Build for macOS x86
-        run: GOOS=darwin GOARCH=amd64 go build -o title_creator
+        run: GOOS=darwin GOARCH=amd64 go build -o title_creator title_creator.go winsize_nix.go
 
       - name: Create macos Archives x86
         run: |
@@ -44,7 +44,7 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - name: Build for macOS Arm
-        run: GOOS=darwin GOARCH=arm64 go build -o title_creator
+        run: GOOS=darwin GOARCH=arm64 go build -o title_creator title_creator.go winsize_nix.go
 
       - name: Create macos Archives Arm
         run: |
@@ -52,7 +52,7 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - name: Build for Windows
-        run: GOOS=windows GOARCH=amd64 go build -o title_creator.exe
+        run: GOOS=windows GOARCH=amd64 go build -o title_creator.exe title_creator.go winsize_win.go
 
       - name: Create Windows Archives
         run: |
