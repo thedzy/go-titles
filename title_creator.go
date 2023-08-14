@@ -80,7 +80,6 @@ func main() {
 	flag.Parse()
 
 	// Process any arguments that new validation or alteration
-	fmt.Println(*displayCharacters)
 	if *displayCharacters == "" {
 		for x := 32; x < 127; x++ {
 			*displayCharacters += string(rune(x))
@@ -109,6 +108,7 @@ func main() {
 
 	// Load character map
 	var characterMap map[string][][]int
+	var err error
 	if *loadFile != "" && isValidFilePath(*loadFile) {
 		if *debug {
 			fmt.Println("Loading File")
@@ -123,7 +123,10 @@ func main() {
 				log.Fatal(err)
 			}
 		} else {
-			characterMap, _ = loadCharacterMapFromDisk(*loadFile)
+			characterMap, err = loadCharacterMapFromDisk(*loadFile)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 		// Get resolution from loaded map
 		for _, value := range characterMap {
@@ -143,7 +146,7 @@ func main() {
 	// Draw title
 	fontBytes := getFont(*fontName)
 	renderImage, textImageRect := renderText(*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
-	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution*2)
+	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution)
 
 	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
@@ -158,11 +161,8 @@ func main() {
 			*maxWidth = math.MaxInt32
 		}
 	}
-	displayWidth := int(*maxWidth) * *displayResolution
+	displayWidth := *maxWidth * *displayResolution
 	if int(textImageRect.X>>6) > displayWidth {
-		if *debug {
-			fmt.Println("Scaling")
-		}
 		// Calculate the scale factor to resize the image to width 120
 		scale := float64(displayWidth) / float64(textImageRect.X>>6)
 		croppedImage = scaleImageToDimension(croppedImage, int(displayWidth), int(float64(textImageRect.Y>>6)*scale), 0)
@@ -187,8 +187,8 @@ func main() {
 
 	// Save character map
 	if *saveFile != "" && isValidSavePath(*saveFile) {
+		answer := ""
 		if isValidFilePath(*saveFile) {
-			answer := ""
 			for {
 				fmt.Printf("File %s already exists. Do you want to replace it? (yes/no): ", *saveFile)
 
@@ -196,33 +196,34 @@ func main() {
 				answer, _ = reader.ReadString('\n')
 				answer = strings.TrimSpace(answer)
 
-				if answer == "no" || answer == "n" {
+				if answer == "no" || answer == "n" || answer == "yes" || answer == "y" {
 					break
 				}
-				if answer == "yes" || answer == "y" {
-					if strings.HasSuffix(*saveFile, ".json") {
-						fmt.Println("Save json to disk")
+			}
+		}
+		if answer == "yes" || answer == "y" || answer == "" {
+			if strings.HasSuffix(*saveFile, ".json") {
+				fmt.Println("Save json to disk")
 
-						// Open a file for writing
-						file, err := os.Create(*saveFile)
-						if err != nil {
-							log.Fatal(err)
-						}
-						defer file.Close()
+				// Open a file for writing
+				file, err := os.Create(*saveFile)
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer file.Close()
 
-						// Create a JSON encoder to write to the file
-						encoder := json.NewEncoder(file)
+				// Create a JSON encoder to write to the file
+				encoder := json.NewEncoder(file)
 
-						// Encode the characterMap and write it to the file
-						err = encoder.Encode(characterMap)
-						if err != nil {
-							log.Fatal(err)
-						}
-					} else {
-						fmt.Println("Save map to disk")
-						saveCharacterMapToDisk(characterMap, *saveFile)
-					}
-					break
+				// Encode the characterMap and write it to the file
+				err = encoder.Encode(characterMap)
+				if err != nil {
+					log.Fatal(err)
+				}
+			} else {
+				fmt.Println("Save map to disk")
+				if err := saveCharacterMapToDisk(characterMap, *saveFile); err != nil {
+					log.Fatal(err)
 				}
 			}
 		}
@@ -252,7 +253,9 @@ func main() {
 			if screenOutput {
 				fmt.Print(character)
 			} else {
-				outputToFile(*outputFile, character)
+				if err := outputToFile(*outputFile, character); err != nil {
+					log.Fatal(err)
+				}
 			}
 			fmt.Print("\x1B[0m")
 		}
@@ -261,6 +264,9 @@ func main() {
 		} else {
 			outputToFile(*outputFile, "\n")
 		}
+	}
+	if !screenOutput {
+		fmt.Printf("Output added to file: %s", *outputFile)
 	}
 }
 
@@ -350,7 +356,7 @@ func getFont(fontName string) *sfnt.Font {
 func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
-	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize*2.0)))
+	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize*2.5)))
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
 
 	draw.Draw(render, render.Bounds(), background, image.ZP, draw.Src)
