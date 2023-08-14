@@ -23,7 +23,7 @@ jobs:
           go-version: 1.x
 
       - name: Build for Linux
-        run: GOOS=linux GOARCH=amd64 go build -o title_creator
+        run: GOOS=linux GOARCH=amd64 go build -o title_creator-linux
 
       - name: Build for macOS
         run: GOOS=darwin GOARCH=amd64 go build -o title_creator
@@ -34,7 +34,7 @@ jobs:
       - name: Archive Builds
         run: |
           mkdir builds
-          mv title_creator builds/
+          mv title_creator-linux builds/
           mv title_creator builds/
           mv title_creator.exe builds/
         working-directory: ${{ github.workspace }}
