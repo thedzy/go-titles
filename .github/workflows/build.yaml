@@ -48,6 +48,8 @@ jobs:
       - name: Create or Update Release
         uses: softprops/action-gh-release@v1
         with:
+          bump_version_scheme: minor
           files: builds/*
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
