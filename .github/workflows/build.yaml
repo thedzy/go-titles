@@ -44,3 +44,11 @@ jobs:
         with:
           name: builds
           path: builds
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: builds/*
+          prerelease: false  # Change to 'true' if this is a pre-release
+          files_glob: true
+          token: ${{ secrets.GITHUB_TOKEN }}
