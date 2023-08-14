@@ -22,21 +22,48 @@ jobs:
         with:
           go-version: 1.x
 
-      - name: Build for Linux
-        run: GOOS=linux GOARCH=amd64 go build -o title_creator-linux
+      - name: Create Archive Dir
+        run: |
+          mkdir archives
 
-      - name: Build for macOS
+      - name: Build for Linux
+        run: GOOS=linux GOARCH=amd64 go build -o title_creator
+
+      - name: Create Linux Archives
+        run: |
+          mkdir archives
+          tar -czvf archives/title_creator-linux.tar.gz title_creator
+        working-directory: ${{ github.workspace }}
+
+      - name: Build for macOS x86
         run: GOOS=darwin GOARCH=amd64 go build -o title_creator
+
+      - name: Create macos Archives x86
+        run: |
+          mkdir archives
+          tar -czvf archives/title_creator-macos-intel.tar.gz title_creator
+        working-directory: ${{ github.workspace }}
+
+      - name: Build for macOS Arm
+        run: GOOS=darwin GOARCH=arm64 go build -o title_creator
+
+      - name: Create macos Archives Arm
+        run: |
+          mkdir archives
+          tar -czvf archives/title_creator-macos-arm.tar.gz title_creator
+        working-directory: ${{ github.workspace }}
 
       - name: Build for Windows
         run: GOOS=windows GOARCH=amd64 go build -o title_creator.exe
 
-      - name: Archive Builds
+      - name: Create Windows Archives
         run: |
-          mkdir builds
-          mv title_creator-linux builds/
-          mv title_creator builds/
-          mv title_creator.exe builds/
+          mkdir archives
+          zip -r archives/title_creator-windows.zip title_creator.exe
+        working-directory: ${{ github.workspace }}
+
+      - name: Move Archives to Builds
+        run: mv archives/* builds/
         working-directory: ${{ github.workspace }}
 
       - name: Upload Builds
@@ -50,7 +77,7 @@ jobs:
         with:
           tag_name: v1.0.0
           generate_release_notes:  true
-          files: builds/*
+          files: archives/*
           prerelease: false
           token: ${{ secrets.GO_TITLES_BUILD }}
 
