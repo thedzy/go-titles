@@ -52,5 +52,5 @@ jobs:
           generate_release_notes:  true
           files: builds/*
           prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GO_TITLES_BUILD }}
 
