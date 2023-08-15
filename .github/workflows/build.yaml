@@ -31,12 +31,20 @@ jobs:
         run: |
           cp README.md builds/
 
-      - name: Build for Linux
+      - name: Build for Linux x86
         run: GOOS=linux GOARCH=amd64 go build -o title_creator title_creator.go winsize_nix.go
 
-      - name: Create Linux Archives
+      - name: Create Linux Archives x86
         run: |
-          tar -czvf archives/title_creator-linux.tar.gz title_creator README.md *.json *.map
+          tar -czvf archives/title_creator-linux_x86_64.tar.gz title_creator README.md *.json *.map
+        working-directory: ${{ github.workspace }}
+
+      - name: Build for Linux arm64
+        run: GOOS=linux GOARCH=arm64 go build -o title_creator title_creator.go winsize_nix.go
+
+      - name: Create Linux Archives arm64
+        run: |
+          tar -czvf archives/title_creator-linux_arm64.tar.gz title_creator README.md *.json *.map
         working-directory: ${{ github.workspace }}
 
       - name: Build for macOS x86
