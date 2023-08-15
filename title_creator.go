@@ -63,10 +63,10 @@ func main() {
 			for _, value := range values {
 				flagOption := flagSet.Lookup(value)
 				fmt.Printf("    --%s", flagOption.Name)
-				if flagOption.DefValue != "0" && flagOption.DefValue != "" {
-					fmt.Printf("=%s", flagOption.Value)
-				} else {
+				if flagOption.Value.String() == "0" || flagOption.Value.String() == "" {
 					fmt.Printf("=%s", "None")
+				} else {
+					fmt.Printf("=%s", flagOption.Value)
 				}
 				fmt.Println()
 				fmt.Printf("        %s ", flagOption.Usage)
