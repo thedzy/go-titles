@@ -198,6 +198,11 @@ Add more font types
 xattr -d com.apple.quarantine /path/to/title_creator
 ### zsh: permission denied: /path/to/title_creator
 chmod a+x /path/to/title_creator
+### Block characters to not line up, or words are "wavey"
+Windows only renders block characters aligned in the console and no where else \
+Make sure you are using a fixed width font
+### Empty squares appear
+Choose a font that supports the character you choose the render with
 
 ## New
 
