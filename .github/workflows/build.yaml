@@ -27,12 +27,16 @@ jobs:
           mkdir archives
           mkdir builds
 
+      - name: Copy readme
+        run: |
+          cp README.md builds/
+
       - name: Build for Linux
         run: GOOS=linux GOARCH=amd64 go build -o title_creator title_creator.go winsize_nix.go
 
       - name: Create Linux Archives
         run: |
-          tar -czvf archives/title_creator-linux.tar.gz title_creator
+          tar -czvf archives/title_creator-linux.tar.gz title_creator README.md *.json *.map
         working-directory: ${{ github.workspace }}
 
       - name: Build for macOS x86
@@ -40,7 +44,7 @@ jobs:
 
       - name: Create macos Archives x86
         run: |
-          tar -czvf archives/title_creator-macos-intel.tar.gz title_creator
+          tar -czvf archives/title_creator-macos-intel.tar.gz title_creator README.md *.json *.map
         working-directory: ${{ github.workspace }}
 
       - name: Build for macOS Arm
@@ -48,7 +52,7 @@ jobs:
 
       - name: Create macos Archives Arm
         run: |
-          tar -czvf archives/title_creator-macos-arm.tar.gz title_creator
+          tar -czvf archives/title_creator-macos-arm.tar.gz title_creator README.md *.json *.map
         working-directory: ${{ github.workspace }}
 
       - name: Build for Windows
@@ -56,7 +60,7 @@ jobs:
 
       - name: Create Windows Archives
         run: |
-          zip -r archives/title_creator-windows.zip title_creator.exe
+          zip -r archives/title_creator-windows.zip title_creator.exe README.md *.json *.map
         working-directory: ${{ github.workspace }}
 
       - name: Upload Builds
