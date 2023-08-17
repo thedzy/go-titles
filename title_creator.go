@@ -35,7 +35,7 @@ var (
 	maxWidth          = flag.Int("max-width", 0, "maximum width to render")
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
 	inverted          = flag.Bool("invert", false, "invert image")
-	renderMode        = flag.Int("mode", 20, "render mode")
+	renderMode        = flag.Int("mode", 0, "render mode")
 
 	// File options
 	loadFile   = flag.String("load", "", "load saved character map")
