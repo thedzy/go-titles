@@ -56,7 +56,7 @@ func main() {
 
 		fmt.Println("optional arguments:")
 		order := map[string][]string{
-			"display":      {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "inverted", "mode", "allow-inverted"},
+			"display":      {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "invert", "mode", "allow-inverted"},
 			"input/output": {"load", "save", "output"},
 		}
 		for key, values := range order {
