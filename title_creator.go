@@ -34,6 +34,7 @@ var (
 	fontSize          = flag.Float64("size", 25.0, "font size in points")
 	maxWidth          = flag.Int("max-width", 0, "maximum width to render")
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
+	inverted          = flag.Bool("invert", false, "invert image")
 	renderMode        = flag.Int("mode", 20, "render mode")
 
 	// File options
@@ -55,7 +56,7 @@ func main() {
 
 		fmt.Println("optional arguments:")
 		order := map[string][]string{
-			"display":      {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "mode", "allow-inverted"},
+			"display":      {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "inverted", "mode", "allow-inverted"},
 			"input/output": {"load", "save", "output"},
 		}
 		for key, values := range order {
@@ -81,10 +82,13 @@ func main() {
 
 	// Process any arguments that new validation or alteration
 	if *displayCharacters == "" {
-		for x := 32; x < 127; x++ {
+		for x := 32; x < 128; x++ {
 			*displayCharacters += string(rune(x))
 		}
-		for x := 161; x < 256; x++ {
+		for x := 161; x < 173; x++ {
+			*displayCharacters += string(rune(x))
+		}
+		for x := 174; x < 255; x++ {
 			*displayCharacters += string(rune(x))
 		}
 	} else {
@@ -145,8 +149,8 @@ func main() {
 
 	// Draw title
 	fontBytes := getFont(*fontName)
-	renderImage, textImageRect := renderText(*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
-	croppedImage := cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6)+*displayResolution, int(textImageRect.Y>>6)+*displayResolution)
+	renderImage, textImageRect := renderText("\n"+*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
+	renderImage = cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6), int(textImageRect.Y>>6))
 
 	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
@@ -165,23 +169,23 @@ func main() {
 	if int(textImageRect.X>>6) > displayWidth {
 		// Calculate the scale factor to resize the image to width 120
 		scale := float64(displayWidth) / float64(textImageRect.X>>6)
-		croppedImage = scaleImageToDimension(croppedImage, displayWidth, int(float64(textImageRect.Y>>6)*scale), 0)
+		renderImage = scaleImageToDimension(renderImage, displayWidth, int(float64(textImageRect.Y>>6)*scale), 0)
 	}
 	if *debug {
-		err := saveImage(croppedImage, "title.png")
+		err := saveImage(renderImage, "title.png")
 		if err != nil {
 			log.Println(err)
 		}
 	}
 
 	// Scale to pixel ratio
-	bounds := croppedImage.Bounds()
-	croppedImage = scaleImageToDimension(croppedImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect), 0)
-	// croppedImage = cropBlank(croppedImage)
+	bounds := renderImage.Bounds()
+	renderImage = scaleImageToDimension(renderImage, bounds.Max.X, int(float64(bounds.Max.Y)**pixelAspect), 0)
+	renderImage = cropImageToContent(renderImage, *displayResolution)
 
 	// Build and fill a 4D matrix of the title
-	brightnessMatrix := getEmptyBrightnessMatrix(croppedImage, *displayResolution)
-	brightnessMatrix = fillBrightnessMatrix(brightnessMatrix, croppedImage, *displayResolution)
+	brightnessMatrix := getEmptyBrightnessMatrix(renderImage, *displayResolution)
+	brightnessMatrix = fillBrightnessMatrix(brightnessMatrix, renderImage, *displayResolution)
 
 	// Build character map if not loading from file
 	if !isValidFilePath(*loadFile) {
@@ -253,7 +257,7 @@ func main() {
 	rows, cols := len(brightnessMatrix), len(brightnessMatrix[0])
 	for x := 0; x < rows; x++ {
 		for y := 0; y < cols; y++ {
-			character, invert := findMatch(characterMap, brightnessMatrix[x][y], *renderMode)
+			character, invert := findMatch(characterMap, brightnessMatrix[x][y], *renderMode, *inverted)
 			if invert {
 				fmt.Print("\x1B[7m")
 			}
@@ -280,22 +284,57 @@ func main() {
 }
 
 // findMatch Find a character that matches a section of image
-func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) (string, bool) {
+func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int, inverted bool) (string, bool) {
 	match := " "
 	bestScore := 255.0
 	invertedMatch := " "
 	invertedBestScore := 0.0
-	inverted := false
-	perfectMatches := make(map[string]bool)
+	invertCharacters := false
 	for character, matrix := range characterMap {
 		var score float64
 		switch method {
 		case 1:
-			score = calculateMSE(testMatrix, matrix)
-		case 2:
 			score = calculateABS(testMatrix, matrix)
+		case 2:
+			score = compareNeighbours(testMatrix, matrix, 1)
+		case 3:
+			score = compareNeighbours(testMatrix, matrix, 2)
+		case 4:
+			score = compareNeighbours(testMatrix, matrix, 3)
+		case 10:
+			score = calculateContrast(testMatrix, matrix, 1)
+		case 11:
+			score = calculateContrast(testMatrix, matrix, 2)
+		case 12:
+			score = calculateContrast(testMatrix, matrix, 4)
+		case 13:
+			score = calculateContrast(testMatrix, matrix, 8)
+		case 14:
+			score = calculateContrast(testMatrix, matrix, 16)
+		case 15:
+			score = calculateContrast(testMatrix, matrix, 32)
+		case 16:
+			score = calculateContrast(testMatrix, matrix, 64)
+		case 17:
+			score = calculateContrast(testMatrix, matrix, 128)
+		case 18:
+			score = calculateContrast(testMatrix, matrix, 192)
+		case 19:
+			score = calculateContrast(testMatrix, matrix, 224)
+		case 20:
+			score = calculateContrast(testMatrix, matrix, 240)
+		case 21:
+			score = calculateContrast(testMatrix, matrix, 248)
+		case 22:
+			score = calculateContrast(testMatrix, matrix, 252)
+		case 23:
+			score = calculateContrast(testMatrix, matrix, 254)
 		default:
-			score = calculateContrast(testMatrix, matrix, method)
+			score = calculateMSE(testMatrix, matrix)
+		}
+
+		if inverted {
+			score = 255 - score
 		}
 
 		if score < bestScore {
@@ -310,18 +349,13 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int) 
 
 	if *useInverted {
 		if bestScore <= 255-invertedBestScore {
-			// fmt.Printf("%0.0f v %0.0f, regular\n", bestScore, 255-invertedBestScore)
-			inverted = false
+			invertCharacters = false
 		} else {
-			// fmt.Printf("%0.0f v %0.0f, inverted\n", bestScore, 255-invertedBestScore)
 			match = invertedMatch
-			inverted = true
+			invertCharacters = true
 		}
 	}
-	if len(perfectMatches) > 1 {
-		// choose randomly
-	}
-	return match, inverted
+	return match, invertCharacters
 }
 
 // getFont Get font from file
@@ -365,9 +399,8 @@ func getFont(fontName string) *sfnt.Font {
 func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, foreground, background *image.Uniform) (image.Image, fixed.Point26_6) {
 
 	// Initialize the context.
-	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize*2.5)))
-	draw.Draw(render, render.Bounds(), background, image.Pt(0, 0), draw.Src)
-
+	lines := strings.Split(text, "\n")
+	render := image.NewRGBA(image.Rect(0, 0, int(fontSize)*len(text)*2, int(fontSize)*(len(lines)+1)))
 	draw.Draw(render, render.Bounds(), background, image.Pt(0, 0), draw.Src)
 
 	face, err := opentype.NewFace(&fontData, &opentype.FaceOptions{
@@ -378,21 +411,52 @@ func renderText(text string, fontData sfnt.Font, fontSize, imageDPI float64, for
 	if err != nil {
 		log.Fatalf("NewFace: %v, %s", err, *fontName)
 	}
-
 	fontDrawer := font.Drawer{
 		Dst:  render,
 		Src:  foreground,
 		Face: face,
 		Dot:  fixed.P(0, int(fontSize)),
 	}
+	maxDot := fixed.I(0)
+	for _, line := range lines {
+		fontDrawer.Dot.X = 0
+		fontDrawer.DrawString(line)
+		if fontDrawer.Dot.X > maxDot {
+			maxDot = fontDrawer.Dot.X
+		}
+		fontDrawer.Dot.Y += fixed.I(int(fontSize))
 
-	fontDrawer.DrawString(text)
-
+	}
+	fontDrawer.Dot.X = maxDot
 	// Determine the rendering bounds of the text
 	bounds, _ := fontDrawer.BoundString(text)
 
 	return render, fixed.P(int(bounds.Min.X/64), int(bounds.Max.Y/64))
 
+}
+
+// cropImageToContent Find the first and last line with content and crop
+func cropImageToContent(imageSrc image.Image, resolution int) image.Image {
+	bounds := imageSrc.Bounds()
+	startY, endY := -1, -1
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			_, _, _, a := imageSrc.At(x, y).RGBA()
+			if a > 0 {
+				if startY < 0 {
+					startY = y
+					break
+				}
+				if startY >= 0 {
+					endY = y
+					break
+				}
+			}
+		}
+	}
+
+	return cropImageToDimension(imageSrc, bounds.Min.X, startY, bounds.Max.X, endY+resolution)
 }
 
 // cropImageToDimension Crops image to the dimensions (x1, y1) to (x2, y2)
@@ -623,17 +687,15 @@ func drawMatrix(value [][]int) {
 // calculateMSE Compares 2 matrix based on a Mean Squared Error
 func calculateMSE(matrix1, matrix2 [][]int) float64 {
 	if len(matrix1) != len(matrix2) || len(matrix1[0]) != len(matrix2[0]) {
-		fmt.Printf("%d,%d != %d,%d\n", len(matrix1), len(matrix1[0]), len(matrix2), len(matrix2[0]))
-		fmt.Println(matrix2)
 		panic("Matrices must have the same dimensions.")
 	}
 
 	rows, cols := len(matrix1), len(matrix1[0])
 	sum := 0.0
 
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			diff := matrix1[i][j] - matrix2[i][j]
+	for x := 0; x < rows; x++ {
+		for y := 0; y < cols; y++ {
+			diff := matrix1[x][y] - matrix2[x][y]
 			sum += float64(diff * diff)
 		}
 	}
@@ -651,9 +713,9 @@ func calculateABS(matrix1, matrix2 [][]int) float64 {
 	sum := 0.0
 	n := float64(len(matrix1) * len(matrix1[0]))
 
-	for i := 0; i < len(matrix1); i++ {
-		for j := 0; j < len(matrix1[0]); j++ {
-			diff := float64(matrix1[i][j] - matrix2[i][j])
+	for x := 0; x < len(matrix1); x++ {
+		for y := 0; y < len(matrix1[0]); y++ {
+			diff := float64(matrix1[x][y] - matrix2[x][y])
 			sum += math.Abs(diff)
 		}
 	}
@@ -670,9 +732,9 @@ func calculateContrast(matrix1, matrix2 [][]int, thresholdValue int) float64 {
 	sum := 0.0
 	n := float64(len(matrix1) * len(matrix1[0]))
 
-	for i := 0; i < len(matrix1); i++ {
-		for j := 0; j < len(matrix1[0]); j++ {
-			score := math.Abs(contrastThreshold(matrix1[i][j], thresholdValue) - contrastThreshold(matrix2[i][j], thresholdValue))
+	for x := 0; x < len(matrix1); x++ {
+		for y := 0; y < len(matrix1[0]); y++ {
+			score := math.Abs(contrastThreshold(matrix1[x][y], thresholdValue) - contrastThreshold(matrix2[x][y], thresholdValue))
 			sum += score
 		}
 	}
@@ -685,6 +747,43 @@ func contrastThreshold(value, thresholdValue int) float64 {
 		return 1.0
 	}
 	return 0.0
+}
+
+// compareNeighbours Compares 2 matrix with each point the nearest neighbours are wighted too
+func compareNeighbours(matrix1, matrix2 [][]int, n int) float64 {
+
+	totalDifference := 0.0
+	numElements := 0
+
+	// Loop through each element in the matrices
+	for x := 0; x < len(matrix1); x++ {
+		for y := 0; y < len(matrix1[0]); y++ {
+			// Calculate the sum of absolute differences with neighbors
+			differenceSum := 0.0
+			count := 0
+
+			for nx := -n; nx <= n; nx++ {
+				for ny := -n; ny <= n; ny++ {
+					if x+nx >= 0 && x+nx < len(matrix1) && y+ny >= 0 && y+ny < len(matrix1[0]) {
+						differenceSum += math.Abs(float64(matrix1[x+nx][y+ny] - matrix2[x+nx][y+ny]))
+						count++
+					}
+				}
+			}
+
+			// Update the total difference
+			if count > 0 {
+				averageDifference := differenceSum / float64(count)
+				totalDifference += averageDifference
+				numElements++
+			}
+		}
+	}
+
+	// Calculate the similarity score as the average difference
+	// normalized to a range of 0-255
+	averageDifference := totalDifference / float64(numElements)
+	return averageDifference
 }
 
 // isValidFilePath Validates that a complete path exists and is a file
