@@ -180,6 +180,12 @@ I like starting my programs with a nice title.
    ***<span style="color: yellow;">allow-inverted</span>*** versions of the character
 7. It draws each matching character to screen or ***<span style="color: yellow;">output</span>s*** to file
 
+## What are the modes?
+- Mode 0 (default) : Mean Squared Error
+- Mode 1 : Sum of absolute differences in matrix
+- Mode 2-4 : Absolute differences in matrix with neighbouring values
+- Mode 10-23: Contrasted values
+
 ## Improvements?
 
 Add more font types
@@ -209,3 +215,11 @@ Choose a font that supports the character you choose the render with
 ### 1.0
 
 Create a title and save/load the character map created
+
+### 1.1
+- Fixed bad ascii code in default character set
+- Support multiline
+- Better cropping
+- Inverted mode
+- New render modes
+- Code cleanup
