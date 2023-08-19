@@ -223,3 +223,6 @@ Create a title and save/load the character map created
 - Inverted mode
 - New render modes
 - Code cleanup
+
+### 1.1.1
+- Printing first character only in json key, this allows for duplicate keys, example ascii-art.json
