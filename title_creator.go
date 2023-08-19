@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -355,7 +356,8 @@ func findMatch(characterMap map[string][][]int, testMatrix [][]int, method int, 
 			invertCharacters = true
 		}
 	}
-	return match, invertCharacters
+	matchChar, _ := utf8.DecodeRuneInString(match)
+	return string(matchChar), invertCharacters
 }
 
 // getFont Get font from file
