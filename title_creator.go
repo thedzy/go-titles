@@ -14,6 +14,8 @@ import (
 	"golang.org/x/image/math/fixed"
 	"image"
 	"image/color"
+	_ "image/gif"
+	_ "image/jpeg"
 	"image/png"
 	"io/ioutil"
 	"log"
@@ -37,11 +39,13 @@ var (
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
 	inverted          = flag.Bool("invert", false, "invert image")
 	renderMode        = flag.Int("mode", 0, "render mode")
+	imageBrightness   = flag.Float64("image-brightness", 128.0, "0-255, 0 darkest, 255 brightest")
 
 	// File options
 	loadFile   = flag.String("load", "", "load saved character map")
 	saveFile   = flag.String("save", "", "save character map")
 	outputFile = flag.String("output", "", "save output to file")
+	imageFile  = flag.String("image", "", "load image file")
 
 	debug = flag.Bool("debug", false, "debug mode")
 )
@@ -57,8 +61,9 @@ func main() {
 
 		fmt.Println("optional arguments:")
 		order := map[string][]string{
-			"display":      {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "invert", "mode", "allow-inverted"},
-			"input/output": {"load", "save", "output"},
+			"display":        {"text", "characters", "resolution", "aspect", "font", "size", "max-width", "invert", "mode", "allow-inverted"},
+			"input/output":   {"load", "save", "output"},
+			"image handling": {"image", "image-brightness"},
 		}
 		for key, values := range order {
 			fmt.Println(key + ":")
@@ -148,10 +153,67 @@ func main() {
 	}
 	*fontSize = *fontSize * float64(*displayResolution)
 
-	// Draw title
-	fontBytes := getFont(*fontName)
-	renderImage, textImageRect := renderText("\n"+*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
-	renderImage = cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6), int(textImageRect.Y>>6))
+	// Draw/load title/Image
+	var renderImage image.Image
+	var textImageRect fixed.Point26_6
+	if *imageFile == "" {
+		fontBytes := getFont(*fontName)
+		renderImage, textImageRect = renderText("\n"+*text, *fontBytes, *fontSize, 72.0, image.White, image.Transparent)
+		renderImage = cropImageToDimension(renderImage, 0, 0, int(textImageRect.X>>6), int(textImageRect.Y>>6))
+	} else {
+		file, err := os.Open(*imageFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+
+		// Decode the image
+		img, _, err := image.Decode(file)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Create a new RGBA image with the same size as the original image
+		textImageRect := img.Bounds()
+		newImage := image.NewRGBA(textImageRect)
+		grayImage := image.NewGray(textImageRect)
+
+		// Convert each pixel to grayscale
+		draw.Draw(grayImage, textImageRect, img, image.Point{0, 0}, draw.Src)
+
+		// Loop through each pixel and set the alpha value based on pixel brightness
+		for y := textImageRect.Min.Y; y < textImageRect.Max.Y; y++ {
+			for x := textImageRect.Min.X; x < textImageRect.Max.X; x++ {
+				// Get the pixel's color and calculate its brightness
+				pixel := grayImage.At(x, y)
+				r, g, b, _ := pixel.RGBA()
+				alpha := uint8(b)
+
+				// Compress/decompress the values to move the midpoint value
+				midPoint := *imageBrightness
+				if midPoint > 255 {
+					midPoint = 255
+				}
+				scale := midPoint / 255 * 2
+				if float64(alpha) < 128 {
+					alpha = uint8(float64(alpha) * scale)
+				} else {
+					alpha = uint8(255 - ((255 - float64(alpha)) * (2 - scale)))
+				}
+				_, _, _ = r, g, b
+				newImage.Set(x, y, color.RGBA{alpha, alpha, alpha, alpha})
+			}
+		}
+
+		// Scale image to "fontSize"
+		renderImage = scaleImageToDimension(newImage, int(float64(textImageRect.Max.X)/float64(textImageRect.Max.Y)**fontSize), int(*fontSize), 1)
+		if *debug {
+			err := saveImage(renderImage, "image_file.png")
+			if err != nil {
+				log.Println(err)
+			}
+		}
+	}
 
 	// Check if the image width is greater than window width and if we are rending to screen
 	if *maxWidth == 0 {
@@ -167,10 +229,9 @@ func main() {
 		}
 	}
 	displayWidth := *maxWidth * *displayResolution
-	if int(textImageRect.X>>6) > displayWidth {
-		// Calculate the scale factor to resize the image to width 120
-		scale := float64(displayWidth) / float64(textImageRect.X>>6)
-		renderImage = scaleImageToDimension(renderImage, displayWidth, int(float64(textImageRect.Y>>6)*scale), 0)
+	if renderImage.Bounds().Dx() > displayWidth {
+		scale := float64(displayWidth) / float64(renderImage.Bounds().Dx())
+		renderImage = scaleImageToDimension(renderImage, displayWidth, int(float64(renderImage.Bounds().Dy())*scale), 0)
 	}
 	if *debug {
 		err := saveImage(renderImage, "title.png")
