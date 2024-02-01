@@ -34,7 +34,7 @@ var (
 	displayResolution = flag.Int("resolution", 16, "text to render, ignored when loading a map")
 	pixelAspect       = flag.Float64("aspect", 0.5, "character height to width")
 	fontName          = flag.String("font", getDefaultFont(), "filename of the ttf/otf font")
-	fontSize          = flag.Float64("size", 25.0, "font size in points")
+	fontSize          = flag.Float64("size", 25.0, "font/image size in points/pixels")
 	maxWidth          = flag.Int("max-width", 0, "maximum width to render")
 	useInverted       = flag.Bool("allow-inverted", false, "use inverted characters, ignored when writing to file")
 	inverted          = flag.Bool("invert", false, "invert image")
@@ -101,6 +101,8 @@ func main() {
 		displayCharacters = removeSpecialCharactersAndDuplicates(*displayCharacters)
 	}
 
+	validLoadFile, loadFilePath := validFilePath(*loadFile)
+
 	if !isValidFilePath(*fontName) {
 		fmt.Printf("%s does not exist", *fontName)
 		os.Exit(1)
@@ -119,12 +121,12 @@ func main() {
 	// Load character map
 	var characterMap map[string][][]int
 	var err error
-	if *loadFile != "" && isValidFilePath(*loadFile) {
+	if loadFilePath != "" && validLoadFile {
 		if *debug {
 			fmt.Println("Loading File")
 		}
-		if strings.HasSuffix(*loadFile, ".json") {
-			jsonData, err := ioutil.ReadFile(*loadFile)
+		if strings.HasSuffix(loadFilePath, ".json") {
+			jsonData, err := ioutil.ReadFile(loadFilePath)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -133,7 +135,7 @@ func main() {
 				log.Fatal(err)
 			}
 		} else {
-			characterMap, err = loadCharacterMapFromDisk(*loadFile)
+			characterMap, err = loadCharacterMapFromDisk(loadFilePath)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -143,12 +145,12 @@ func main() {
 			*displayResolution = len(value)
 			break
 		}
-	} else if *loadFile == "" {
+	} else if loadFilePath == "" {
 		if *debug {
 			fmt.Println(*displayCharacters)
 		}
-	} else if *loadFile != "" && !isValidFilePath(*loadFile) {
-		fmt.Printf("%s, is not a valid path\n", *loadFile)
+	} else if loadFilePath != "" && validLoadFile {
+		fmt.Printf("%s, is not a valid path\n", loadFilePath)
 		os.Exit(1)
 	}
 	*fontSize = *fontSize * float64(*displayResolution)
@@ -186,22 +188,22 @@ func main() {
 			for x := textImageRect.Min.X; x < textImageRect.Max.X; x++ {
 				// Get the pixel's color and calculate its brightness
 				pixel := grayImage.At(x, y)
-				r, g, b, _ := pixel.RGBA()
-				alpha := uint8(b)
+				r, _, _, _ := pixel.RGBA()
+				alpha := uint8(r)
 
-				// Compress/decompress the values to move the midpoint value
+				// Compress/decompress the values to move the midpoint value (brightness)
 				midPoint := *imageBrightness
 				if midPoint > 255 {
 					midPoint = 255
 				}
 				scale := midPoint / 255 * 2
-				if float64(alpha) < 128 {
+				if alpha < 128 {
 					alpha = uint8(float64(alpha) * scale)
 				} else {
 					alpha = uint8(255 - ((255 - float64(alpha)) * (2 - scale)))
 				}
-				_, _, _ = r, g, b
-				newImage.Set(x, y, color.RGBA{alpha, alpha, alpha, alpha})
+
+				newImage.Set(x, y, color.RGBA{uint8(alpha), uint8(alpha), uint8(alpha), uint8(alpha)})
 			}
 		}
 
@@ -250,7 +252,7 @@ func main() {
 	brightnessMatrix = fillBrightnessMatrix(brightnessMatrix, renderImage, *displayResolution)
 
 	// Build character map if not loading from file
-	if !isValidFilePath(*loadFile) {
+	if !validLoadFile {
 		characterMap = mapCharacters(*displayCharacters, *displayResolution)
 	}
 
@@ -858,6 +860,32 @@ func isValidFilePath(path string) bool {
 	}
 
 	return !info.IsDir()
+}
+
+// validFilePath Validates that a complete path exists and is a file at the pwd and the exec and returns the valid path
+func validFilePath(path string) (bool, string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		// If os.Stat returns an error, the file or directory doesn't exist
+		execPath, err := os.Executable()
+		if err != nil {
+			return false, path
+		}
+		execDir := filepath.Dir(execPath)
+		filePath := filepath.Join(execDir, path)
+
+		// Check if file exists with exec
+		if info, err := os.Stat(filePath); err == nil {
+			if !info.IsDir() {
+				return true, filePath
+			} else {
+				return false, filePath
+			}
+		}
+		return false, path
+	}
+
+	return !info.IsDir(), path
 }
 
 // isValidSavePath Validates that the parent directory of a path exists
