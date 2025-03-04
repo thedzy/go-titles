@@ -35,6 +35,12 @@ jobs:
         run: |
           mkdir archives
           mkdir builds
+
+          
+      - name: Download Dependencies
+        run: |
+          go mod tidy
+    
       - name: Copy readme
         run: |
           cp README.md builds/
